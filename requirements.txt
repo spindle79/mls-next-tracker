@@ -1,0 +1,16 @@
+# mls-next-tracker — Python dependencies for the scraping and prediction
+# pipeline. The Next.js app itself doesn't need any of these.
+#
+# Install with:
+#   python3 -m venv .venv && source .venv/bin/activate
+#   pip install -r requirements.txt
+#   playwright install chromium
+
+# HTTP + HTML parsing (used by scrape.py + parse_standings.py + build_data.py)
+requests>=2.31
+beautifulsoup4>=4.12
+
+# Headless browser for the JS-rendered MLS NEXT pages on modular11.com
+# (used by scrape_academy.py / scrape_homegrown.py + the
+# .playwright-scrape-matches.js helper)
+playwright>=1.43

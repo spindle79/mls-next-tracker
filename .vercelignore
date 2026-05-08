@@ -1,0 +1,4 @@
+.venv
+.playwright-browsers
+**/__pycache__
+*.pyc

@@ -1,0 +1,30 @@
+{
+  "name": "mls-next-tracker",
+  "private": true,
+  "description": "Standings, predictions, and what-if explorer for every MLS NEXT Academy + Homegrown division",
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "predev": "node scripts/export-divisions.mjs",
+    "prebuild": "node scripts/export-divisions.mjs",
+    "build": "next build",
+    "dev": "next dev",
+    "start": "next start",
+    "lint": "next lint",
+    "export-divisions": "node scripts/export-divisions.mjs",
+    "vercel-build": "pnpm install && pnpm build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "next": "^15.2.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "typescript": "^5.8.2"
+  }
+}

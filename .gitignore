@@ -1,0 +1,33 @@
+# Build / runtime artifacts
+.next
+node_modules
+*.tsbuildinfo
+.venv
+.playwright-browsers
+.playwright-mcp
+__pycache__/
+*.py[cod]
+
+# Vercel
+.vercel
+
+# Scraped data — regenerable via scrape_academy.py / scrape_homegrown.py / scrape.py
+data.json
+public/data.json
+public/divisions/
+divisions/
+scraped_*.json
+
+# Saved standings HTML fixtures — regenerable by saving the modular11
+# standings page to disk; not the source of truth for the live app.
+page1.html
+page2.html
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Local Claude / AI agent settings (per-machine, not portable)
+.claude/settings.local.json
+.claude/skills/

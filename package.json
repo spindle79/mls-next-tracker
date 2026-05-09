@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "next lint",
     "export-divisions": "node scripts/export-divisions.mjs",
-    "vercel-build": "pnpm install && pnpm build"
+    "vercel-build": "pnpm install && pnpm build",
+    "prepare": "husky"
   },
   "engines": {
     "node": ">=18"
@@ -25,6 +26,12 @@
     "@types/node": "^22.14.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.12",
+    "prettier": "^3.4.2"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,mjs,cjs,json,md,yaml,yml,css,html}": "prettier --write"
   }
 }

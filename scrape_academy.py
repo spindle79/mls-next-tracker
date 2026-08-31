@@ -1,12 +1,24 @@
 #!/usr/bin/env python3
 """
-Scrape MLS Next Academy standings for every regional division on modular11.com,
-for each age group (U13–U19). Uses Playwright after JS render + in-page fetch for match lists.
+Scrape MLS NEXT Academy standings + schedule for every division and age group
+from the MLS Assist league viewer (theintelligenceplatform.com).
+
+The viewer is a static-JSON SPA: the whole season ships in two unfiltered
+files, so there is no browser automation and no pagination to walk. The
+squads/clubs/from/to query params in a viewer URL are client-side filters only.
+
+  /data/schedule/<season-key>.json    every match, whole season
+  /data/standings/<season-key>.json   position + tiebreaker values per squad
+
+The two feeds are joined on `squad_id`. Team and division names are taken from
+the standings feed, which is authoritative: the schedule feed's own `division`
+field disagrees with it (e.g. "South California" vs "Southern California", and
+it files a block of "North" games under "Great Lakes North").
 
 Usage:
-  python3 scrape_academy.py              # all configured age groups (long run)
-  python3 scrape_academy.py --ages 21    # U13 only
-  python3 scrape_academy.py --ages 21,22 # U13 + U14
+  python3 scrape_academy.py                  # all age groups (one HTTP fetch each feed)
+  python3 scrape_academy.py --ages U14       # U14 only
+  python3 scrape_academy.py --ages U13,U14   # U13 + U14
 """
 
 from __future__ import annotations
@@ -14,216 +26,259 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import time
+from collections import defaultdict
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+import requests
 
 REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
-BASE_URL = "https://www.modular11.com"
+BASE_URL = "https://mls-assist.theintelligenceplatform.com"
+DEFAULT_SEASON_KEY = "mls-next-2-academy-division-26-27"
 
-# (path_suffix, display label) — IDs from modular11 age dropdown for MLS Next Academy Division
-DEFAULT_ACADEMY_AGES = (
-    ("21", "U13"),
-    ("22", "U14"),
-    ("33", "U15"),
-    ("14", "U16"),
-    ("15", "U17"),
-    ("26", "U19"),
-)
+# Age groups carried by the Academy Division feed, in display order.
+DEFAULT_ACADEMY_AGES = ("U13", "U14", "U15", "U16", "U17", "U19")
 
-STANDINGS_JS = r"""() => {
-  const divisions = [];
-  document.querySelectorAll('.container-table-standing').forEach(container => {
-    const titleEl = container.querySelector('.container-group-text p[data-title]');
-    const divisionTitle = titleEl ? titleEl.getAttribute('data-title').trim() : '';
-    const teams = [];
-    container.querySelectorAll('.container-division-row').forEach(row => {
-      const mainRow = row.querySelector('.main_row');
-      if (!mainRow) return;
-      const rank = parseInt(mainRow.querySelector('.container-rank')?.textContent?.trim() || '0', 10);
-      const name = mainRow.querySelector('.container-team-info p[data-title]')?.getAttribute('data-title')?.trim() || '';
-      const statsDiv = mainRow.querySelector('.pad-left');
-      const vals = statsDiv ? Array.from(statsDiv.querySelectorAll(':scope > div')).map(d => d.textContent.trim()).filter(Boolean) : [];
-      const rowAttr = mainRow.getAttribute('row');
-      let paginationData = [];
-      if (window.matchLists && window.matchLists[rowAttr]) {
-        paginationData = window.matchLists[rowAttr].paginationData;
-      }
-      teams.push({
-        rank, name, rowAttr,
-        group: mainRow.getAttribute('js-group'),
-        paginationData,
-        stats: {
-          PTS: vals[0]||'0', PPM: vals[1]||'0', MP: vals[2]||'0', W: vals[3]||'0',
-          L: vals[4]||'0', T: vals[5]||'0', GF: vals[6]||'0', GA: vals[7]||'0', GD: vals[8]||'0'
-        }
-      });
-    });
-    divisions.push({ divisionTitle, teams });
-  });
-  return JSON.stringify(divisions);
-}"""
+# stats key -> tiebreaker key in the standings feed. GF/GA/GD are absent there
+# (it publishes per-match rates instead) and are summed from the match results.
+FEED_STAT_KEYS = {
+    "PTS": "points",
+    "PPM": "points_per_match_penalty_shootout",
+    "MP": "matches_played",
+    "W": "won",
+    "L": "loss",
+    "T": "tie",
+}
 
-MATCHES_JS = r"""async () => {
-  const scr = [...document.scripts].map(s => s.textContent || '').join('\n');
-  const parseIntSafe = (re, def) => {
-    const m = scr.match(re);
-    return m ? parseInt(m[1], 10) : def;
-  };
-  const age = parseIntSafe(/\bage\s*=\s*(\d+)/, 21);
-  const tournament = parseIntSafe(/\btournament\s*=\s*(\d+)/, 35);
-  const lm = scr.match(/list_type\s*=\s*'(\d+)'/);
-  const list_type = lm ? lm[1] : '71';
-
-  const teams = [];
-  document.querySelectorAll('.container-table-standing').forEach(container => {
-    container.querySelectorAll('.container-division-row').forEach(row => {
-      const mainRow = row.querySelector('.main_row');
-      if (!mainRow) return;
-      const name = mainRow.querySelector('.container-team-info p[data-title]')?.getAttribute('data-title')?.trim() || '';
-      const rowAttr = mainRow.getAttribute('row');
-      const group = mainRow.getAttribute('js-group');
-      let pagData = [];
-      if (window.matchLists && window.matchLists[rowAttr]) {
-        pagData = window.matchLists[rowAttr].paginationData;
-      }
-      teams.push({ rowAttr, name, pagData, group });
-    });
-  });
-
-  function parseMatches(html) {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    const rows = doc.querySelectorAll('.table-content-row.hidden-xs');
-    const matches = [];
-    for (const mr of rows) {
-      const midDiv = mr.querySelector('.col-sm-1');
-      const matchId = midDiv ? midDiv.textContent.trim().split('\n')[0].replace('MALE', '').trim() : '';
-      const detailsDiv = mr.querySelector('.col-sm-2');
-      let date = '', venue = '';
-      if (detailsDiv) {
-        const dateMatch = detailsDiv.textContent.trim().match(/(\d{2}\/\d{2}\/\d{2}\s+\d{1,2}:\d{2}[ap]m)/);
-        if (dateMatch) date = dateMatch[1];
-        const venueP = detailsDiv.querySelector('p[data-title]');
-        if (venueP) venue = venueP.getAttribute('data-title').trim();
-      }
-      const home = mr.querySelector('.container-first-team p[data-title]')?.getAttribute('data-title')?.trim() || '';
-      const away = mr.querySelector('.container-second-team p[data-title]')?.getAttribute('data-title')?.trim() || '';
-      const scoreSpan = mr.querySelector('.score-match-table');
-      const score = scoreSpan ? scoreSpan.textContent.trim().replace(/\u00a0/g, ' ') : '';
-      if (matchId) matches.push({ match_id: matchId, date, venue, home, away, score });
-    }
-    return matches;
-  }
-
-  async function fetchPage(pagData, pageNum, group) {
-    const params = new URLSearchParams({
-      open_page: pageNum,
-      pagination_data: JSON.stringify(pagData),
-      bracket: '', age, tournament, group, list_type,
-    });
-    const resp = await fetch('/public_schedule/league/get_partial_matches_by_team?' + params.toString());
-    return await resp.text();
-  }
-
-  const results = [];
-  for (const team of teams) {
-    const group = team.group;
-    if (!team.pagData || team.pagData.length === 0) {
-      results.push({ rowAttr: team.rowAttr, name: team.name, matches: [] });
-      continue;
-    }
-    const allMatches = [];
-    const seenIds = new Set();
-    let page = 1;
-    while (page <= 40) {
-      const html = await fetchPage(team.pagData, page, group);
-      const matches = parseMatches(html);
-      const newMatches = matches.filter(m => !seenIds.has(m.match_id));
-      if (newMatches.length === 0) break;
-      newMatches.forEach(m => { seenIds.add(m.match_id); allMatches.push(m); });
-      if (matches.length < 10) break;
-      page++;
-    }
-    results.push({ rowAttr: team.rowAttr, name: team.name, matches: allMatches });
-  }
-  return results;
-}"""
+REQUEST_TIMEOUT = 120
 
 
-def _parse_stat_val(raw):
+def fetch_json(url: str) -> dict:
+    print(f"  GET {url}")
+    resp = requests.get(url, timeout=REQUEST_TIMEOUT, headers={"Accept": "application/json"})
+    resp.raise_for_status()
+    ctype = resp.headers.get("content-type", "")
+    if "json" not in ctype:
+        # The SPA serves index.html for any unknown path rather than a 404.
+        raise SystemExit(
+            f"Expected JSON from {url} but got {ctype!r} ({len(resp.content)} bytes).\n"
+            "The season key is probably wrong — check --season-key."
+        )
+    print(f"    {len(resp.content) / 1e6:.1f} MB")
+    return resp.json()
+
+
+def format_kickoff(event: dict) -> str:
+    """UTC start_time -> local wall clock as 'MM/DD/YY HH:MMam' (build_data's format)."""
+    raw = event.get("start_time")
+    if not raw:
+        return ""
     try:
-        return float(raw) if '.' in str(raw) else int(raw)
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
     except ValueError:
-        return 0
+        return ""
+    tz = event.get("local_timezone")
+    if tz:
+        try:
+            dt = dt.astimezone(ZoneInfo(tz))
+        except Exception:
+            pass
+    return dt.strftime("%m/%d/%y %I:%M%p").lower()
 
 
-def scrape_age_group(
-    page,
-    age_id: str,
-    age_label: str,
-    *,
-    standings_url: str | None = None,
-) -> dict:
-    """Return { age_id, age_label, divisions: [...] } for one age."""
-    url = standings_url or f"{BASE_URL}/league-standings/mls-next-academy-division/{age_id}"
-    print(f"\n=== Age {age_label} ({age_id}) ===\n  {url}")
-    page.goto(url, wait_until="networkidle", timeout=120000)
-    page.wait_for_selector(".container-table-standing", timeout=90000)
-    page.wait_for_timeout(1500)
-
-    divisions_raw = json.loads(page.evaluate(STANDINGS_JS))
-    total_teams = sum(len(d.get("teams") or []) for d in divisions_raw)
-    print(f"  Divisions: {len(divisions_raw)}, teams: {total_teams}")
-
-    print("  Fetching match lists (per team)...")
-    match_rows = page.evaluate(MATCHES_JS)
-    by_row = {m["rowAttr"]: m["matches"] for m in match_rows}
-
-    divisions_out = []
-    for div in divisions_raw:
-        title = div.get("divisionTitle") or ""
-        teams_out = []
-        for t in div.get("teams") or []:
-            row_attr = t.get("rowAttr")
-            matches = by_row.get(row_attr, [])
-            teams_out.append({
-                "rank": t["rank"],
-                "name": t["name"],
-                "rowAttr": row_attr,
-                "group": t.get("group") or "",
-                "paginationData": t.get("paginationData") or [],
-                "stats": t.get("stats") or {},
-                "matches": matches,
-            })
-        divisions_out.append({"division": title, "teams": teams_out})
-
-    return {"age_id": age_id, "age_label": age_label, "divisions": divisions_out}
+def format_score(event: dict) -> str:
+    """'3 : 1' for a played match, '' for one not yet played (build_data's format)."""
+    home, away = event.get("home_score"), event.get("away_score")
+    if not event.get("completed") or home is None or away is None:
+        return ""
+    return f"{home} : {away}"
 
 
-def scrape_academy(
-    ages: list[tuple[str, str]],
-    *,
-    outfile: str,
-) -> dict:
-    from playwright.sync_api import sync_playwright
+def build_squad_index(standings: dict) -> tuple[dict, dict]:
+    """Map squad_id -> bracket key, and bracket key -> ordered standings rows."""
+    season = standings.get("competition_season") or {}
+    brackets = season.get("competition_brackets") or []
 
-    os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", f"{REPO_ROOT}/.playwright-browsers")
+    squad_to_bracket: dict[int, tuple[str, str]] = {}
+    bracket_rows: dict[tuple[str, str], list[dict]] = {}
 
+    for bracket in brackets:
+        age_label = ((bracket.get("age_group") or {}).get("name") or "").strip()
+        division = (bracket.get("name") or "").strip()
+        if not age_label or not division:
+            continue
+        key = (age_label, division)
+        rows = []
+        for row in bracket.get("standings") or []:
+            team = row.get("team") or {}
+            squad_id = team.get("squad_id")
+            name = (team.get("name") or "").strip()
+            if squad_id is None or not name:
+                continue
+            squad_to_bracket[squad_id] = key
+            rows.append(
+                {
+                    "squad_id": squad_id,
+                    "name": name,
+                    "position": row.get("position") or 0,
+                    "tiebreaker_values": row.get("tiebreaker_values") or {},
+                }
+            )
+        bracket_rows[key] = rows
+
+    return squad_to_bracket, bracket_rows
+
+
+def group_matches(events: list[dict], squad_to_bracket: dict) -> tuple[dict, list, int]:
+    """Bucket events into brackets. Only games where both squads share a bracket count."""
+    by_bracket: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    unknown_squads: set[tuple] = set()
+    cross_bracket = 0
+
+    for event in events:
+        home_key = squad_to_bracket.get(event.get("home_squad_id"))
+        away_key = squad_to_bracket.get(event.get("away_squad_id"))
+
+        for side in ("home", "away"):
+            if squad_to_bracket.get(event.get(f"{side}_squad_id")) is None:
+                unknown_squads.add(
+                    (
+                        event.get(f"{side}_squad_name") or "?",
+                        (event.get(f"{side}_organisation") or {}).get("name") or "?",
+                    )
+                )
+
+        if home_key is None or away_key is None:
+            continue
+        if home_key != away_key:
+            # Interleague / showcase fixture. Excluded so a division's matches stay
+            # self-consistent — and the standings feed excludes them too.
+            cross_bracket += 1
+            continue
+
+        by_bracket[home_key].append(
+            {
+                "match_id": str(event.get("game_key") or event.get("id") or ""),
+                "date": format_kickoff(event),
+                "venue": ((event.get("event_location") or {}).get("name") or "").strip(),
+                "home": ((event.get("home_organisation") or {}).get("name") or "").strip(),
+                "away": ((event.get("away_organisation") or {}).get("name") or "").strip(),
+                "score": format_score(event),
+                "home_squad_id": event.get("home_squad_id"),
+                "away_squad_id": event.get("away_squad_id"),
+            }
+        )
+
+    return by_bracket, sorted(unknown_squads), cross_bracket
+
+
+def goal_totals(matches: list[dict]) -> dict[int, dict[str, int]]:
+    """Sum GF/GA/MP per squad_id from played matches."""
+    totals: dict[int, dict[str, int]] = defaultdict(lambda: {"GF": 0, "GA": 0, "MP": 0})
+    for m in matches:
+        if not m["score"]:
+            continue
+        home_goals, away_goals = (int(x.strip()) for x in m["score"].split(":"))
+        home, away = totals[m["home_squad_id"]], totals[m["away_squad_id"]]
+        home["GF"] += home_goals
+        home["GA"] += away_goals
+        home["MP"] += 1
+        away["GF"] += away_goals
+        away["GA"] += home_goals
+        away["MP"] += 1
+    return totals
+
+
+def build_division(division: str, rows: list[dict], matches: list[dict], warnings: list[str]) -> dict:
+    """One division block in the scrape bundle: ranked teams with stats + match lists."""
+    totals = goal_totals(matches)
+    by_squad: dict[int, list[dict]] = defaultdict(list)
+    for m in matches:
+        by_squad[m["home_squad_id"]].append(m)
+        by_squad[m["away_squad_id"]].append(m)
+
+    teams = []
+    for row in sorted(rows, key=lambda r: r["position"] or 0):
+        squad_id = row["squad_id"]
+        tb = row["tiebreaker_values"]
+        stats = {}
+        for abbr, feed_key in FEED_STAT_KEYS.items():
+            stats[abbr] = str((tb.get(feed_key) or {}).get("value") or "0")
+
+        goals = totals.get(squad_id, {"GF": 0, "GA": 0, "MP": 0})
+        stats["GF"] = str(goals["GF"])
+        stats["GA"] = str(goals["GA"])
+        stats["GD"] = str(goals["GF"] - goals["GA"])
+
+        # The feed's own matches_played should equal the played games we found.
+        if stats["MP"].isdigit() and int(stats["MP"]) != goals["MP"]:
+            warnings.append(
+                f"{division} / {row['name']}: feed MP={stats['MP']} but "
+                f"{goals['MP']} played matches found"
+            )
+
+        teams.append(
+            {
+                "rank": row["position"],
+                "name": row["name"],
+                "stats": stats,
+                "matches": [
+                    {k: v for k, v in m.items() if k not in ("home_squad_id", "away_squad_id")}
+                    for m in sorted(by_squad.get(squad_id, []), key=lambda x: x["date"])
+                ],
+            }
+        )
+
+    return {"division": division, "teams": teams}
+
+
+def scrape_academy(ages, season_key=DEFAULT_SEASON_KEY, outfile="scraped_academy.json"):
+    print(f"Season: {season_key}")
+    print("Fetching standings feed...")
+    standings = fetch_json(f"{BASE_URL}/data/standings/{season_key}.json")
+    print("Fetching schedule feed...")
+    schedule = fetch_json(f"{BASE_URL}/data/schedule/{season_key}.json")
+
+    events = schedule.get("events") or []
+    squad_to_bracket, bracket_rows = build_squad_index(standings)
+    print(f"\n{len(events)} events, {len(squad_to_bracket)} squads, {len(bracket_rows)} divisions in feed")
+
+    by_bracket, unknown_squads, cross_bracket = group_matches(events, squad_to_bracket)
+    if cross_bracket:
+        print(f"Skipped {cross_bracket} cross-division fixtures")
+    if unknown_squads:
+        print(f"Skipped {len(unknown_squads)} squad(s) with no standings row:")
+        for squad_name, club in unknown_squads:
+            print(f"    {club} ({squad_name})")
+
+    wanted = list(ages)
+    warnings: list[str] = []
     bundle = {
         "league": "academy",
-        "league_url_path": "mls-next-academy-division",
-        "scraped_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "source": f"{BASE_URL}/data/schedule/{season_key}.json",
+        "season_key": season_key,
+        "synced_at": schedule.get("synced_at") or "",
         "age_groups": [],
     }
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        try:
-            page = browser.new_page()
-            for age_id, age_label in ages:
-                ag = scrape_age_group(page, age_id, age_label)
-                bundle["age_groups"].append(ag)
-        finally:
-            browser.close()
+    for age_label in wanted:
+        divisions = []
+        for (bracket_age, division), rows in sorted(bracket_rows.items()):
+            if bracket_age != age_label:
+                continue
+            block = build_division(division, rows, by_bracket.get((bracket_age, division), []), warnings)
+            divisions.append(block)
+            played = sum(1 for m in by_bracket.get((bracket_age, division), []) if m["score"])
+            total = len(by_bracket.get((bracket_age, division), []))
+            print(f"  {age_label:<4} {division:<30} {len(block['teams']):>3} teams  {total:>3} matches ({played} played)")
+        if not divisions:
+            print(f"  {age_label}: no divisions found")
+        bundle["age_groups"].append({"age_label": age_label, "divisions": divisions})
+
+    if warnings:
+        print(f"\n{len(warnings)} stat mismatch warning(s):")
+        for w in warnings[:20]:
+            print(f"    {w}")
 
     path = outfile if os.path.isabs(outfile) else os.path.join(REPO_ROOT, outfile)
     with open(path, "w") as f:
@@ -231,23 +286,26 @@ def scrape_academy(
     print(f"\nWrote {path}")
 
     total_divs = sum(len(ag["divisions"]) for ag in bundle["age_groups"])
-    total_teams = sum(
-        len(t["teams"])
-        for ag in bundle["age_groups"]
-        for t in ag["divisions"]
-    )
+    total_teams = sum(len(d["teams"]) for ag in bundle["age_groups"] for d in ag["divisions"])
     print(f"Summary: {len(bundle['age_groups'])} age groups, {total_divs} divisions, {total_teams} team rows")
 
     return bundle
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Scrape full MLS Next Academy modular11 standings + matches.")
+    p = argparse.ArgumentParser(
+        description="Scrape MLS NEXT Academy standings + schedule from the MLS Assist league viewer."
+    )
     p.add_argument(
         "--ages",
         type=str,
         default="",
-        help="Comma-separated age path IDs (e.g. 21,22). Default: all U13–U19 academy ages.",
+        help=f"Comma-separated age labels (e.g. U14 or U13,U14). Default: all ({','.join(DEFAULT_ACADEMY_AGES)}).",
+    )
+    p.add_argument(
+        "--season-key",
+        default=DEFAULT_SEASON_KEY,
+        help=f"Competition season key in the feed URL (default: {DEFAULT_SEASON_KEY}).",
     )
     p.add_argument(
         "-o",
@@ -261,15 +319,18 @@ def parse_args():
 def main():
     args = parse_args()
     if args.ages.strip():
-        wanted = {x.strip() for x in args.ages.split(",") if x.strip()}
-        ages = [(aid, lab) for aid, lab in DEFAULT_ACADEMY_AGES if aid in wanted]
-        missing = wanted - {aid for aid, _ in ages}
+        requested = [x.strip().upper() for x in args.ages.split(",") if x.strip()]
+        requested = ["U" + x if x.isdigit() else x for x in requested]
+        ages = [a for a in DEFAULT_ACADEMY_AGES if a in requested]
+        missing = set(requested) - set(ages)
         if missing:
-            raise SystemExit(f"Unknown age id(s): {missing}. Known: { [a for a,_ in DEFAULT_ACADEMY_AGES] }")
+            raise SystemExit(
+                f"Unknown age label(s): {sorted(missing)}. Known: {list(DEFAULT_ACADEMY_AGES)}"
+            )
     else:
         ages = list(DEFAULT_ACADEMY_AGES)
 
-    scrape_academy(ages, outfile=args.output)
+    scrape_academy(ages, season_key=args.season_key, outfile=args.output)
     print("\nNext: python3 build_data.py --from-academy-scrape")
 
 

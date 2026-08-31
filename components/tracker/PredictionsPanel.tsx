@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import type { DivisionData } from '@/lib/tracker/types';
-import { TableScroll } from '@/components/tracker/TrackerUi';
+import type { DivisionData } from "@/lib/tracker/types";
+import { TableScroll } from "@/components/tracker/TrackerUi";
 import {
   effectivePredictedOutcome,
   formatPredGoal,
   getPredictionsArray,
   isFocusTeam,
   parsePredDate,
-} from '@/lib/tracker/logic';
+} from "@/lib/tracker/logic";
 
 type Props = {
   data: DivisionData;
@@ -33,7 +33,9 @@ export function PredictionsPanel({
   } else if (filter) {
     preds = preds.filter((p) => p.home === filter || p.away === filter);
   }
-  preds = [...preds].sort((a, b) => parsePredDate(a.date).getTime() - parsePredDate(b.date).getTime());
+  preds = [...preds].sort(
+    (a, b) => parsePredDate(a.date).getTime() - parsePredDate(b.date).getTime(),
+  );
 
   return (
     <div id="tab-predictions">
@@ -88,17 +90,17 @@ export function PredictionsPanel({
                 const awayF = isFocusTeam(p.away, focusTeam);
                 const hasF = homeF || awayF;
                 const eff = effectivePredictedOutcome(p);
-                let predText = '';
-                if (eff === 'home_win') predText = `${p.home} win`;
-                else if (eff === 'away_win') predText = `${p.away} win`;
-                else predText = 'Draw';
+                let predText = "";
+                if (eff === "home_win") predText = `${p.home} win`;
+                else if (eff === "away_win") predText = `${p.away} win`;
+                else predText = "Draw";
 
-                let focusOutcome = '';
+                let focusOutcome = "";
                 if (hasF) {
-                  if (eff === 'home_win' && homeF) focusOutcome = 'home_win';
-                  else if (eff === 'away_win' && awayF) focusOutcome = 'home_win';
-                  else if (eff === 'draw') focusOutcome = 'draw';
-                  else focusOutcome = 'away_win';
+                  if (eff === "home_win" && homeF) focusOutcome = "home_win";
+                  else if (eff === "away_win" && awayF) focusOutcome = "home_win";
+                  else if (eff === "draw") focusOutcome = "draw";
+                  else focusOutcome = "away_win";
                 }
 
                 const hwPct = Math.round(Number(p.home_win_prob) * 100);
@@ -108,9 +110,9 @@ export function PredictionsPanel({
                 const aEst = formatPredGoal(p.est_away_goals);
 
                 const scoreCell =
-                  eff === 'draw' ? (
+                  eff === "draw" ? (
                     <td className="score predicted-est">
-                      <span className="pred-proj-tie">{hEst}</span> :{' '}
+                      <span className="pred-proj-tie">{hEst}</span> :{" "}
                       <span className="pred-proj-tie">{aEst}</span>
                     </td>
                   ) : (
@@ -120,8 +122,8 @@ export function PredictionsPanel({
                   );
 
                 return (
-                  <tr key={`${p.match_id}-${i}`} className={hasF ? 'highlight' : ''}>
-                    <td>{p.date || '-'}</td>
+                  <tr key={`${p.match_id}-${i}`} className={hasF ? "highlight" : ""}>
+                    <td>{p.date || "-"}</td>
                     <td className="team-name">
                       {homeF ? <span className="focus-indicator">{p.home}</span> : p.home}
                     </td>
@@ -130,7 +132,9 @@ export function PredictionsPanel({
                       {awayF ? <span className="focus-indicator">{p.away}</span> : p.away}
                     </td>
                     <td>
-                      <span className={`prediction-tag ${hasF ? focusOutcome : eff}`}>{predText}</span>
+                      <span className={`prediction-tag ${hasF ? focusOutcome : eff}`}>
+                        {predText}
+                      </span>
                     </td>
                     <td>
                       <div className="prob-inline">
@@ -144,7 +148,7 @@ export function PredictionsPanel({
                         </span>
                       </div>
                     </td>
-                    <td className="team-name team-col--medium">{p.venue || '-'}</td>
+                    <td className="team-name team-col--medium">{p.venue || "-"}</td>
                   </tr>
                 );
               })}

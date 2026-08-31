@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from "react";
 import {
   ACTIVE_AGE_LS_KEY,
   ACTIVE_LEAGUE_LS_KEY,
@@ -13,17 +13,17 @@ import {
   resolveFocusTeam,
   uniqueSortedAgeLabelsFromCatalog,
   uniqueSortedLeaguesFromCatalog,
-} from '@/lib/tracker/logic';
-import { loadDivisionBundle } from '@/lib/tracker/loadDivision';
-import type { DivisionData, RootData, WhatifScores } from '@/lib/tracker/types';
-import { H2HPanel } from './H2HPanel';
-import { PredictionsPanel } from './PredictionsPanel';
-import { ProjectedPanel } from './ProjectedPanel';
-import { WeeklyPanel } from './WeeklyPanel';
-import { TrackerState } from '@/components/tracker/TrackerUi';
-import { WhatIfPanel } from './WhatIfPanel';
+} from "@/lib/tracker/logic";
+import { loadDivisionBundle } from "@/lib/tracker/loadDivision";
+import type { DivisionData, RootData, WhatifScores } from "@/lib/tracker/types";
+import { H2HPanel } from "./H2HPanel";
+import { PredictionsPanel } from "./PredictionsPanel";
+import { ProjectedPanel } from "./ProjectedPanel";
+import { WeeklyPanel } from "./WeeklyPanel";
+import { TrackerState } from "@/components/tracker/TrackerUi";
+import { WhatIfPanel } from "./WhatIfPanel";
 
-type Tab = 'weekly' | 'predictions' | 'projected' | 'h2h' | 'whatif';
+type Tab = "weekly" | "predictions" | "projected" | "h2h" | "whatif";
 
 function defaultWeekIndex(data: DivisionData): number {
   let latest = 0;
@@ -36,17 +36,15 @@ function defaultWeekIndex(data: DivisionData): number {
 export default function TrackerApp() {
   const [rootData, setRootData] = useState<RootData | null>(null);
   const [data, setData] = useState<DivisionData | null>(null);
-  const [divisionId, setDivisionId] = useState<string>('');
+  const [divisionId, setDivisionId] = useState<string>("");
   const [currentWeek, setCurrentWeek] = useState(0);
-  const [tab, setTab] = useState<Tab>('weekly');
+  const [tab, setTab] = useState<Tab>("weekly");
   const [focusTeam, setFocusTeam] = useState<string | null>(null);
-  const [predFilter, setPredFilter] = useState('');
+  const [predFilter, setPredFilter] = useState("");
   const [predFocusOnly, setPredFocusOnly] = useState(false);
-  const [h2hTeam, setH2hTeam] = useState('');
+  const [h2hTeam, setH2hTeam] = useState("");
   const [whatifScores, setWhatifScores] = useState<WhatifScores>({});
-  const [whatifFilter, setWhatifFilter] = useState<'all' | 'focus' | 'glens'>(
-    'all',
-  );
+  const [whatifFilter, setWhatifFilter] = useState<"all" | "focus" | "glens">("all");
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const applyDivision = useCallback(
@@ -54,7 +52,7 @@ export default function TrackerApp() {
       if (!rootData) return;
       const loaded = await loadDivisionBundle(id, rootData);
       if (!loaded) {
-        setDivisionId(String(data?.id ?? ''));
+        setDivisionId(String(data?.id ?? ""));
         return;
       }
       setRootData(loaded.root);
@@ -68,20 +66,17 @@ export default function TrackerApp() {
     let cancelled = false;
     (async () => {
       try {
-        const resp = await fetch('/data.json');
+        const resp = await fetch("/data.json");
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const ROOT_DATA = (await resp.json()) as RootData;
         if (cancelled) return;
 
         const cat = divisionCatalogEntries(ROOT_DATA);
-        let pick = String(ROOT_DATA.default_division_id || cat[0]?.id || '');
+        let pick = String(ROOT_DATA.default_division_id || cat[0]?.id || "");
         const leaguesOnLoad = uniqueSortedLeaguesFromCatalog(cat);
 
         let leagueFilterLoad: string | undefined;
-        if (
-          leaguesOnLoad.length > 1 &&
-          typeof localStorage !== 'undefined'
-        ) {
+        if (leaguesOnLoad.length > 1 && typeof localStorage !== "undefined") {
           const storedLeague = localStorage.getItem(ACTIVE_LEAGUE_LS_KEY);
           if (storedLeague && leaguesOnLoad.includes(storedLeague)) {
             leagueFilterLoad = storedLeague;
@@ -94,10 +89,7 @@ export default function TrackerApp() {
         const agesOnLoad = uniqueSortedAgeLabelsFromCatalog(scopedForAgeLoad);
 
         let ageFilterLoad: string | undefined;
-        if (
-          agesOnLoad.length > 1 &&
-          typeof localStorage !== 'undefined'
-        ) {
+        if (agesOnLoad.length > 1 && typeof localStorage !== "undefined") {
           const storedAge = localStorage.getItem(ACTIVE_AGE_LS_KEY);
           if (storedAge && agesOnLoad.includes(storedAge)) {
             ageFilterLoad = storedAge;
@@ -122,8 +114,7 @@ export default function TrackerApp() {
             return;
           }
           const divisions = (ROOT_DATA.divisions || []) as DivisionData[];
-          const fallback =
-            divisions.find((d) => String(d.id) === pick) ?? divisions[0];
+          const fallback = divisions.find((d) => String(d.id) === pick) ?? divisions[0];
           if (fallback) {
             setRootData(ROOT_DATA);
             setData(fallback);
@@ -138,9 +129,11 @@ export default function TrackerApp() {
 
         setRootData(ROOT_DATA);
         setData(ROOT_DATA as DivisionData);
-        setDivisionId(String((ROOT_DATA as DivisionData).id ?? ''));
+        setDivisionId(String((ROOT_DATA as DivisionData).id ?? ""));
       } catch {
-        setLoadError('Could not load /data.json. Run `pnpm run export-divisions` after building data.');
+        setLoadError(
+          "Could not load /data.json. Run `pnpm run export-divisions` after building data.",
+        );
       }
     })();
     return () => {
@@ -151,11 +144,11 @@ export default function TrackerApp() {
   useEffect(() => {
     if (!data) return;
     const key = FOCUS_TEAM_LS_PREFIX + divisionFocusStorageKey(data);
-    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+    const stored = typeof localStorage !== "undefined" ? localStorage.getItem(key) : null;
     setFocusTeam(resolveFocusTeam(data, stored));
     setCurrentWeek(defaultWeekIndex(data));
     setWhatifScores(buildDefaultWhatifScores(data));
-    setPredFilter('');
+    setPredFilter("");
     setPredFocusOnly(false);
   }, [data?.id]);
 
@@ -166,14 +159,14 @@ export default function TrackerApp() {
 
   useEffect(() => {
     if (!data || !focusTeam) return;
-    const age = data.age_label ? `${data.age_label} · ` : '';
-    const divName = data.division || 'Division';
+    const age = data.age_label ? `${data.age_label} · ` : "";
+    const divName = data.division || "Division";
     const subtitle = `${age}${divName} · ${focusTeam}`;
     document.title = `${subtitle} — tracker`;
   }, [data, focusTeam]);
 
   useEffect(() => {
-    if (tab !== 'whatif' || !data) return;
+    if (tab !== "whatif" || !data) return;
     setWhatifScores((prev) => {
       if (Object.keys(prev).length > 0) return prev;
       if (!(data.predictions?.length ?? 0)) return prev;
@@ -191,26 +184,19 @@ export default function TrackerApp() {
   const catalog = rootData ? divisionCatalogEntries(rootData) : [];
   const leaguesInCatalog = uniqueSortedLeaguesFromCatalog(catalog);
   const showLeaguePicker =
-    !!rootData &&
-    rootData.schema_version === 2 &&
-    leaguesInCatalog.length > 1;
+    !!rootData && rootData.schema_version === 2 && leaguesInCatalog.length > 1;
 
   const currentDivisionEntry = catalog.find((e) => e.id === divisionId);
-  const activeLeagueSlug =
-    currentDivisionEntry?.league?.trim() || leaguesInCatalog[0] || '';
+  const activeLeagueSlug = currentDivisionEntry?.league?.trim() || leaguesInCatalog[0] || "";
 
   const leagueScopedCatalog = showLeaguePicker
     ? catalog.filter((e) => e.league === activeLeagueSlug)
     : catalog;
 
   const agesInScope = uniqueSortedAgeLabelsFromCatalog(leagueScopedCatalog);
-  const showAgePicker =
-    !!rootData &&
-    rootData.schema_version === 2 &&
-    agesInScope.length > 1;
+  const showAgePicker = !!rootData && rootData.schema_version === 2 && agesInScope.length > 1;
 
-  const activeAgeLabel =
-    currentDivisionEntry?.age_label?.trim() || agesInScope[0] || '';
+  const activeAgeLabel = currentDivisionEntry?.age_label?.trim() || agesInScope[0] || "";
 
   const catalogForDivisionSelect =
     showAgePicker && activeAgeLabel
@@ -224,7 +210,7 @@ export default function TrackerApp() {
       const scoped = catalog.filter((e) => e.league === nextLeague);
       const ages = uniqueSortedAgeLabelsFromCatalog(scoped);
       const keepAge = ages.includes(activeAgeLabel) ? activeAgeLabel : ages[0];
-      if (keepAge && typeof localStorage !== 'undefined') {
+      if (keepAge && typeof localStorage !== "undefined") {
         localStorage.setItem(ACTIVE_AGE_LS_KEY, keepAge);
       }
       const nextId = preferDivisionIdInScope(rootData, catalog, {
@@ -246,21 +232,12 @@ export default function TrackerApp() {
       });
       if (nextId) await applyDivision(nextId);
     },
-    [
-      rootData,
-      catalog,
-      activeAgeLabel,
-      activeLeagueSlug,
-      showLeaguePicker,
-      applyDivision,
-    ],
+    [rootData, catalog, activeAgeLabel, activeLeagueSlug, showLeaguePicker, applyDivision],
   );
 
   const showDivisionPicker =
     rootData?.schema_version === 2 &&
-    (showLeaguePicker || showAgePicker
-      ? catalogForDivisionSelect.length > 1
-      : catalog.length > 1);
+    (showLeaguePicker || showAgePicker ? catalogForDivisionSelect.length > 1 : catalog.length > 1);
 
   if (loadError) {
     return <TrackerState variant="error">{loadError}</TrackerState>;
@@ -274,10 +251,10 @@ export default function TrackerApp() {
     <>
       <header>
         <h1>
-          <span id="hdr-brand">Season tracker</span>{' '}
+          <span id="hdr-brand">Season tracker</span>{" "}
           <span id="hdr-scope">
-            {data.age_label ? `${data.age_label} · ` : ''}
-            {data.division || 'Division'}
+            {data.age_label ? `${data.age_label} · ` : ""}
+            {data.division || "Division"}
           </span>
         </h1>
         <div className="header-toolbar">
@@ -325,7 +302,7 @@ export default function TrackerApp() {
                 onChange={(e) => {
                   const id = e.target.value;
                   const entry = catalog.find((c) => c.id === id);
-                  if (typeof localStorage !== 'undefined') {
+                  if (typeof localStorage !== "undefined") {
                     if (entry?.league) {
                       localStorage.setItem(ACTIVE_LEAGUE_LS_KEY, entry.league);
                     }
@@ -339,8 +316,7 @@ export default function TrackerApp() {
                 {catalogForDivisionSelect.map((d) => {
                   const label = showAgePicker
                     ? d.division || d.id
-                    : (d.age_label ? `${d.age_label} — ` : '') +
-                      (d.division || d.id);
+                    : (d.age_label ? `${d.age_label} — ` : "") + (d.division || d.id);
                   return (
                     <option key={d.id} value={d.id}>
                       {label}
@@ -355,30 +331,32 @@ export default function TrackerApp() {
             <select
               id="focus-team-select"
               title="Highlights, summaries, and What If use this club"
-              value={focusTeam || ''}
+              value={focusTeam || ""}
               onChange={(e) => persistFocus(e.target.value)}
             >
-              {[...(data.team_names || [])].sort((a, b) => a.localeCompare(b)).map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
+              {[...(data.team_names || [])]
+                .sort((a, b) => a.localeCompare(b))
+                .map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
             </select>
           </div>
           <nav className="tabs" aria-label="Tracker sections">
             {(
               [
-                ['weekly', 'Weekly'],
-                ['predictions', 'Predictions'],
-                ['projected', 'Projected'],
-                ['h2h', 'H2H'],
-                ['whatif', 'What If'],
+                ["weekly", "Weekly"],
+                ["predictions", "Predictions"],
+                ["projected", "Projected"],
+                ["h2h", "H2H"],
+                ["whatif", "What If"],
               ] as const
             ).map(([id, label]) => (
               <button
                 key={id}
                 type="button"
-                className={`tab ${tab === id ? 'active' : ''}`}
+                className={`tab ${tab === id ? "active" : ""}`}
                 data-tab={id}
                 onClick={() => setTab(id)}
               >
@@ -390,19 +368,17 @@ export default function TrackerApp() {
       </header>
 
       <main className="container">
-        <div className={tab === 'weekly' ? '' : 'hidden'}>
+        <div className={tab === "weekly" ? "" : "hidden"}>
           <WeeklyPanel
             data={data}
             currentWeek={currentWeek}
             focusTeam={focusTeam}
             onPrev={() => setCurrentWeek((w) => Math.max(0, w - 1))}
-            onNext={() =>
-              setCurrentWeek((w) => Math.min((data.weekly?.length ?? 1) - 1, w + 1))
-            }
+            onNext={() => setCurrentWeek((w) => Math.min((data.weekly?.length ?? 1) - 1, w + 1))}
             onWeekChange={(i) => setCurrentWeek(i)}
           />
         </div>
-        <div className={tab === 'predictions' ? '' : 'hidden'}>
+        <div className={tab === "predictions" ? "" : "hidden"}>
           <PredictionsPanel
             data={data}
             focusTeam={focusTeam}
@@ -412,18 +388,18 @@ export default function TrackerApp() {
             onFocusOnlyChange={setPredFocusOnly}
           />
         </div>
-        <div className={tab === 'projected' ? '' : 'hidden'}>
+        <div className={tab === "projected" ? "" : "hidden"}>
           <ProjectedPanel data={data} focusTeam={focusTeam} />
         </div>
-        <div className={tab === 'h2h' ? '' : 'hidden'}>
+        <div className={tab === "h2h" ? "" : "hidden"}>
           <H2HPanel
             data={data}
             focusTeam={focusTeam}
-            selectedTeam={h2hTeam || focusTeam || data.team_names?.[0] || ''}
+            selectedTeam={h2hTeam || focusTeam || data.team_names?.[0] || ""}
             onTeamChange={setH2hTeam}
           />
         </div>
-        <div className={tab === 'whatif' ? '' : 'hidden'}>
+        <div className={tab === "whatif" ? "" : "hidden"}>
           <WhatIfPanel
             data={data}
             focusTeam={focusTeam}

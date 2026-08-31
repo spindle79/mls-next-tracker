@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import type { ReactNode } from 'react';
-import type { DivisionData } from '@/lib/tracker/types';
-import { GoalDiffTd, EmptyTableRow, TableScroll } from '@/components/tracker/TrackerUi';
-import { isFocusTeam } from '@/lib/tracker/logic';
+import type { ReactNode } from "react";
+import type { DivisionData } from "@/lib/tracker/types";
+import { GoalDiffTd, EmptyTableRow, TableScroll } from "@/components/tracker/TrackerUi";
+import { isFocusTeam } from "@/lib/tracker/logic";
 
 type Props = {
   data: DivisionData;
@@ -65,7 +65,7 @@ export function H2HPanel({ data, focusTeam, selectedTeam, onTeamChange }: Props)
                 opponents.map((opp) => {
                   const r = h2h[opp];
                   const gd = r.GF - r.GA;
-                  let resultText: ReactNode = '';
+                  let resultText: ReactNode = "";
                   if (r.W > r.L) resultText = <span className="result-label--good">Winning</span>;
                   else if (r.L > r.W)
                     resultText = <span className="result-label--bad">Losing</span>;

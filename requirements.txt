@@ -4,13 +4,16 @@
 # Install with:
 #   python3 -m venv .venv && source .venv/bin/activate
 #   pip install -r requirements.txt
-#   playwright install chromium
 
-# HTTP + HTML parsing (used by scrape.py + parse_standings.py + build_data.py)
+# --- Current pipeline ---------------------------------------------------------
+# scrape_academy.py fetches two static JSON feeds from the MLS Assist league
+# viewer. That is the only network dependency; no browser is involved.
 requests>=2.31
-beautifulsoup4>=4.12
 
-# Headless browser for the JS-rendered MLS NEXT pages on modular11.com
-# (used by scrape_academy.py / scrape_homegrown.py + the
-# .playwright-scrape-matches.js helper)
+# --- Legacy modular11 path ---------------------------------------------------
+# Only needed for the retired modular11.com scripts (scrape.py,
+# parse_standings.py, and build_data.py's saved-HTML loader). The current
+# pipeline never imports these, so a fresh setup can skip them — as well as
+# the `playwright install chromium` browser download they would otherwise need.
+beautifulsoup4>=4.12
 playwright>=1.43

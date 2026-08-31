@@ -201,8 +201,17 @@ def _shrunk_ppm_gdpm(team_row, mu_ppm, mu_gd, pseudo_mp):
     return ppm, gdpm
 
 
+DEFAULT_GOAL_PRIOR = 2.0
+
+
 def _league_goal_priors(standings, team_names):
-    """League-average goals for/against per team-match (GF/MP and GA/MP)."""
+    """League-average goals for/against per team-match (GF/MP and GA/MP).
+
+    Falls back to the neutral prior when the sample carries no goal signal: no
+    matches played yet, or every played match goalless (a division whose only
+    result is a 0-0 gives a mean of exactly 0, which downstream ratings divide
+    by). One goalless game is not evidence that nobody scores.
+    """
     gfs, gas = [], []
     for n in team_names:
         s = standings[n]
@@ -211,8 +220,12 @@ def _league_goal_priors(standings, team_names):
             gfs.append(s['GF'] / mp)
             gas.append(s['GA'] / mp)
     if not gfs:
-        return 2.0, 2.0
-    return sum(gfs) / len(gfs), sum(gas) / len(gas)
+        return DEFAULT_GOAL_PRIOR, DEFAULT_GOAL_PRIOR
+    mu_gf = sum(gfs) / len(gfs)
+    mu_ga = sum(gas) / len(gas)
+    if mu_gf <= 0 or mu_ga <= 0:
+        return DEFAULT_GOAL_PRIOR, DEFAULT_GOAL_PRIOR
+    return mu_gf, mu_ga
 
 
 def _shrunk_gf_ga_per_match(team_row, mu_gfpm, mu_gapm, pseudo_mp):
@@ -1031,12 +1044,17 @@ def filter_excluded_teams(team_names, all_matches, current_standings):
     return team_names, all_matches, current_standings
 
 
-def make_division_id(league_slug, division_title: str) -> str:
-    """URL-safe id, e.g. academy / u13-northern-california-division."""
-    s = division_title.lower().strip()
-    s = re.sub(r'[^a-z0-9]+', '-', s)
-    s = re.sub(r'-+', '-', s).strip('-')
-    return f"{league_slug}-{s}" if s else league_slug
+def make_division_id(league_slug, division_title: str, age_label: str = '') -> str:
+    """URL-safe id, e.g. academy-u13-northern-california-redwood.
+
+    The age group must be part of the id: the feed keeps age_group separate from
+    the bracket name, so every age group in a region shares one division title
+    ("Northern California Redwood") and would otherwise collide on a single id.
+    """
+    parts = [league_slug, age_label, division_title]
+    slug = '-'.join(p for p in parts if p)
+    slug = re.sub(r'[^a-z0-9]+', '-', slug.lower().strip())
+    return re.sub(r'-+', '-', slug).strip('-') or league_slug
 
 
 def build_division_output(
@@ -1100,7 +1118,7 @@ def build_division_output(
 
 def main():
     import sys
-    GLENS = 'San Francisco Glens'
+    GLENS = 'San Francisco Glens SC'
     academy_scrape = '--from-academy-scrape' in sys.argv
     use_scrape = '--from-scrape' in sys.argv and not academy_scrape
 
@@ -1109,7 +1127,6 @@ def main():
     if academy_scrape:
         scrape_bundles = (
             os.path.join(REPO_ROOT, 'scraped_academy.json'),
-            os.path.join(REPO_ROOT, 'scraped_homegrown.json'),
         )
 
         divisions_out = []
@@ -1154,7 +1171,7 @@ def main():
                     print(f"\n--- [{league_slug}] {age_label} / {div_title} — {len(team_names)} teams, {len(all_matches)} matches ---")
 
                     highlight = GLENS if GLENS in team_names else None
-                    div_id = make_division_id(league_slug, div_title)
+                    div_id = make_division_id(league_slug, div_title, age_label)
 
                     print("  Building week-by-week standings...")
                     bundle = build_division_output(
@@ -1173,10 +1190,9 @@ def main():
 
         if not loaded_bundle:
             raise SystemExit(
-                'No scrape bundles found. Expected at least one of:\n'
+                'No scrape bundle found. Expected:\n'
                 f'  {scrape_bundles[0]}\n'
-                f'  {scrape_bundles[1]}\n'
-                'Run: python3 scrape_academy.py  and/or  python3 scrape_homegrown.py'
+                'Run: python3 scrape_academy.py'
             )
 
         default_id = None

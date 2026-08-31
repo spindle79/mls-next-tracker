@@ -8,15 +8,15 @@ import type {
   PredictionRow,
   RootData,
   WhatifScores,
-} from './types';
+} from "./types";
 
-export const FOCUS_TEAM_LS_PREFIX = 'season-tracker-focus-team:';
+export const FOCUS_TEAM_LS_PREFIX = "season-tracker-focus-team:";
 
 /** Persisted preference when switching Academy vs Homegrown (multi-league roots). */
-export const ACTIVE_LEAGUE_LS_KEY = 'season-tracker-active-league';
+export const ACTIVE_LEAGUE_LS_KEY = "season-tracker-active-league";
 
 /** Persisted age group (e.g. U13) when multiple ages exist in the catalog. */
-export const ACTIVE_AGE_LS_KEY = 'season-tracker-active-age';
+export const ACTIVE_AGE_LS_KEY = "season-tracker-active-age";
 
 export function uniqueSortedLeaguesFromCatalog(cat: DivisionCatalogEntry[]): string[] {
   const s = new Set<string>();
@@ -30,10 +30,10 @@ export function uniqueSortedLeaguesFromCatalog(cat: DivisionCatalogEntry[]): str
 /** Title case for catalog slug (academy → Academy). */
 export function formatLeagueOptionLabel(slug: string): string {
   if (!slug) return slug;
-  return slug.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  return slug.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-const GLENS_FOCUS = 'San Francisco Glens';
+const GLENS_FOCUS = "San Francisco Glens SC";
 
 /** Distinct age labels (U13, U14, …) from catalog rows, optionally scoped to one league. */
 export function uniqueSortedAgeLabelsFromCatalog(
@@ -42,7 +42,7 @@ export function uniqueSortedAgeLabelsFromCatalog(
 ): string[] {
   const s = new Set<string>();
   cat.forEach((e) => {
-    if (leagueFilter != null && leagueFilter !== '' && e.league !== leagueFilter) {
+    if (leagueFilter != null && leagueFilter !== "" && e.league !== leagueFilter) {
       return;
     }
     const a = e.age_label?.trim();
@@ -105,7 +105,7 @@ export function divisionCatalogEntries(root: RootData | null): DivisionCatalogEn
   const divs = root?.divisions as DivisionData[] | undefined;
   if (!divs || !divs.length) return [];
   return divs.map((d) => ({
-    id: String(d.id ?? ''),
+    id: String(d.id ?? ""),
     age_label: d.age_label,
     division: d.division,
     league: d.league,
@@ -118,14 +118,14 @@ export function getPredictionsArray(data: DivisionData): PredictionRow[] {
 }
 
 export function divisionFocusStorageKey(data: DivisionData): string {
-  if (data.id != null && data.id !== '') return String(data.id);
-  const age = data.age_label || '';
-  const div = data.division || '';
+  if (data.id != null && data.id !== "") return String(data.id);
+  const age = data.age_label || "";
+  const div = data.division || "";
   return `${age}|${div}`;
 }
 
 export function formatDateShort(d: Date): string {
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 export function isFocusTeam(name: string, focus: string | null): boolean {
@@ -135,18 +135,18 @@ export function isFocusTeam(name: string, focus: string | null): boolean {
 export function effectivePredictedOutcome(p: PredictionRow): string {
   const h = Math.round(Number(p.est_home_goals));
   const a = Math.round(Number(p.est_away_goals));
-  if (Number.isFinite(h) && Number.isFinite(a) && h === a) return 'draw';
-  return String(p.predicted_outcome ?? '');
+  if (Number.isFinite(h) && Number.isFinite(a) && h === a) return "draw";
+  return String(p.predicted_outcome ?? "");
 }
 
 export function formatPredGoal(n: unknown): string {
   const x = Number(n);
-  if (!Number.isFinite(x)) return '';
+  if (!Number.isFinite(x)) return "";
   return String(Math.round(x));
 }
 
 export function normalizeMatchId(id: unknown): string {
-  return String(id == null ? '' : id).trim();
+  return String(id == null ? "" : id).trim();
 }
 
 export type WeeklyPredParts = {
@@ -158,9 +158,9 @@ export type WeeklyPredParts = {
 
 export function weeklyPredParts(pr: PredictionRow | undefined): WeeklyPredParts {
   if (!pr || pr.est_home_goals == null || pr.est_away_goals == null) {
-    return { predClass: 'score tbd', hStr: '', aStr: '', eff: '' };
+    return { predClass: "score tbd", hStr: "", aStr: "", eff: "" };
   }
-  const predClass = 'score predicted-est';
+  const predClass = "score predicted-est";
   const hStr = formatPredGoal(pr.est_home_goals);
   const aStr = formatPredGoal(pr.est_away_goals);
   const eff = effectivePredictedOutcome(pr);
@@ -183,7 +183,7 @@ export function standingsSnapshotSig(standings: HybridStandingRow[]): string {
   return [...standings]
     .map((s) => `${s.team}|${s.PTS}|${s.MP}|${s.GF}|${s.GA}|${s.rank}`)
     .sort()
-    .join(';');
+    .join(";");
 }
 
 function ensureH2hCell(h2h: Record<string, Record<string, H2hAgg>>, a: string, b: string): H2hAgg {
@@ -277,7 +277,7 @@ function applyPredictionToStandingsAndH2h(
   const aw = standings[away]!;
   h.MP += 1;
   aw.MP += 1;
-  if (outcome === 'home_win') {
+  if (outcome === "home_win") {
     h.W += 1;
     h.PTS += 3;
     aw.L += 1;
@@ -291,7 +291,7 @@ function applyPredictionToStandingsAndH2h(
     aw.away_GA += eh;
     ensureH2hCell(h2h, home, away).W += 1;
     ensureH2hCell(h2h, away, home).L += 1;
-  } else if (outcome === 'away_win') {
+  } else if (outcome === "away_win") {
     aw.W += 1;
     aw.PTS += 3;
     h.L += 1;
@@ -415,8 +415,8 @@ export function whatifMid(p: PredictionRow): string {
 }
 
 export function whatifCanonicalScores(outcome: string): { home: number; away: number } {
-  if (outcome === 'home_win') return { home: 2, away: 0 };
-  if (outcome === 'away_win') return { home: 0, away: 2 };
+  if (outcome === "home_win") return { home: 2, away: 0 };
+  if (outcome === "away_win") return { home: 0, away: 2 };
   return { home: 1, away: 1 };
 }
 
@@ -428,9 +428,9 @@ export function isScorelineDrawByMargin(homeG: number, awayG: number): boolean {
 }
 
 export function whatifOutcomeFromScores(homeG: number, awayG: number): string {
-  if (isScorelineDrawByMargin(homeG, awayG)) return 'draw';
-  if (homeG > awayG) return 'home_win';
-  return 'away_win';
+  if (isScorelineDrawByMargin(homeG, awayG)) return "draw";
+  if (homeG > awayG) return "home_win";
+  return "away_win";
 }
 
 export function buildDefaultWhatifScores(data: DivisionData): WhatifScores {
@@ -444,7 +444,10 @@ export function buildDefaultWhatifScores(data: DivisionData): WhatifScores {
   return whatifScores;
 }
 
-export function whatifCountChangedFromModel(data: DivisionData, whatifScores: WhatifScores): number {
+export function whatifCountChangedFromModel(
+  data: DivisionData,
+  whatifScores: WhatifScores,
+): number {
   let n = 0;
   getPredictionsArray(data).forEach((p) => {
     const s = whatifScores[whatifMid(p)];
@@ -545,7 +548,7 @@ function simulateFromScores(data: DivisionData, scores: WhatifScores): SimRow[] 
     h.MP += 1;
     aw.MP += 1;
 
-    if (outcome === 'home_win') {
+    if (outcome === "home_win") {
       h.W += 1;
       h.PTS += 3;
       aw.L += 1;
@@ -557,7 +560,7 @@ function simulateFromScores(data: DivisionData, scores: WhatifScores): SimRow[] 
       aw.GA += eh;
       aw.away_GF += ea;
       aw.away_GA += eh;
-    } else if (outcome === 'away_win') {
+    } else if (outcome === "away_win") {
       aw.W += 1;
       aw.PTS += 3;
       h.L += 1;
@@ -613,7 +616,10 @@ function simulateFromScores(data: DivisionData, scores: WhatifScores): SimRow[] 
   return ranked;
 }
 
-export function whatifSimulateWithScores(data: DivisionData, scoresOverride: WhatifScores): SimRow[] {
+export function whatifSimulateWithScores(
+  data: DivisionData,
+  scoresOverride: WhatifScores,
+): SimRow[] {
   return simulateFromScores(data, scoresOverride);
 }
 
@@ -635,8 +641,7 @@ export function whatifFocusObjective(simStandings: SimRow[], focus: string | nul
   return {
     rank: glens?.rank ?? 999,
     pts: glens?.PTS ?? -999,
-    ptsAheadOf7:
-      glens && seventh ? Number(glens.PTS) - Number(seventh.PTS) : 0,
+    ptsAheadOf7: glens && seventh ? Number(glens.PTS) - Number(seventh.PTS) : 0,
     ptsAheadOf6: glens && sixth ? Number(glens.PTS) - Number(sixth.PTS) : 0,
   };
 }
@@ -657,7 +662,7 @@ function whatifIsWorseObjective(a: FocusObjective, b: FocusObjective): boolean {
 
 export function whatifOptimizeForFocus(
   data: DivisionData,
-  mode: 'best' | 'worst',
+  mode: "best" | "worst",
   initialScores: WhatifScores,
   focusTeam: string | null,
 ): WhatifScores {
@@ -668,9 +673,10 @@ export function whatifOptimizeForFocus(
 
   getPredictionsArray(data).forEach((p) => {
     const mid = whatifMid(p);
-    if (p.home === ft) scores[mid] = whatifCanonicalScores(mode === 'best' ? 'home_win' : 'away_win');
+    if (p.home === ft)
+      scores[mid] = whatifCanonicalScores(mode === "best" ? "home_win" : "away_win");
     else if (p.away === ft)
-      scores[mid] = whatifCanonicalScores(mode === 'best' ? 'away_win' : 'home_win');
+      scores[mid] = whatifCanonicalScores(mode === "best" ? "away_win" : "home_win");
   });
 
   const preds = [...getPredictionsArray(data)].filter((p) => p.home !== ft && p.away !== ft);
@@ -679,17 +685,15 @@ export function whatifOptimizeForFocus(
     const aImp = (contenders.has(a.home) ? 1 : 0) + (contenders.has(a.away) ? 1 : 0);
     const bImp = (contenders.has(b.home) ? 1 : 0) + (contenders.has(b.away) ? 1 : 0);
     if (aImp !== bImp) return bImp - aImp;
-    return (
-      parsePredDate(a.date).getTime() - parsePredDate(b.date).getTime()
-    );
+    return parsePredDate(a.date).getTime() - parsePredDate(b.date).getTime();
   });
 
-  const isBetter = mode === 'best' ? whatifIsBetterObjective : whatifIsWorseObjective;
+  const isBetter = mode === "best" ? whatifIsBetterObjective : whatifIsWorseObjective;
   let baseObj = whatifFocusObjective(whatifSimulateWithScores(data, scores), ft);
 
   preds.forEach((p) => {
     const mid = whatifMid(p);
-    const candidates = ['home_win', 'draw', 'away_win'];
+    const candidates = ["home_win", "draw", "away_win"];
     let bestOutcome: string | null = null;
     let bestObj: FocusObjective | null = null;
     candidates.forEach((outcome) => {
@@ -710,7 +714,7 @@ export function whatifOptimizeForFocus(
 
   preds.forEach((p) => {
     const mid = whatifMid(p);
-    const candidates = ['home_win', 'draw', 'away_win'];
+    const candidates = ["home_win", "draw", "away_win"];
     let bestOutcome: string | null = null;
     let bestObj = baseObj;
     candidates.forEach((outcome) => {
@@ -746,26 +750,14 @@ function compareNonH2hWhatIf(a: SimRow, b: SimRow): number {
   const aGfpm = perMatchWhatIf(Number(a.GF), Number(a.MP));
   const bGfpm = perMatchWhatIf(Number(b.GF), Number(b.MP));
   if (Math.abs(aGfpm - bGfpm) > 1e-9) return bGfpm - aGfpm;
-  const aAgd = perMatchWhatIf(
-    (a.away_GF ?? 0) - (a.away_GA ?? 0),
-    Number(a.MP),
-  );
-  const bAgd = perMatchWhatIf(
-    (b.away_GF ?? 0) - (b.away_GA ?? 0),
-    Number(b.MP),
-  );
+  const aAgd = perMatchWhatIf((a.away_GF ?? 0) - (a.away_GA ?? 0), Number(a.MP));
+  const bAgd = perMatchWhatIf((b.away_GF ?? 0) - (b.away_GA ?? 0), Number(b.MP));
   if (Math.abs(aAgd - bAgd) > 1e-9) return bAgd - aAgd;
   const aAgf = perMatchWhatIf(a.away_GF ?? 0, Number(a.MP));
   const bAgf = perMatchWhatIf(b.away_GF ?? 0, Number(b.MP));
   if (Math.abs(aAgf - bAgf) > 1e-9) return bAgf - aAgf;
-  const aHgd = perMatchWhatIf(
-    (a.home_GF ?? 0) - (a.home_GA ?? 0),
-    Number(a.MP),
-  );
-  const bHgd = perMatchWhatIf(
-    (b.home_GF ?? 0) - (b.home_GA ?? 0),
-    Number(b.MP),
-  );
+  const aHgd = perMatchWhatIf((a.home_GF ?? 0) - (a.home_GA ?? 0), Number(a.MP));
+  const bHgd = perMatchWhatIf((b.home_GF ?? 0) - (b.home_GA ?? 0), Number(b.MP));
   if (Math.abs(aHgd - bHgd) > 1e-9) return bHgd - aHgd;
   const aHgf = perMatchWhatIf(a.home_GF ?? 0, Number(a.MP));
   const bHgf = perMatchWhatIf(b.home_GF ?? 0, Number(b.MP));
@@ -801,11 +793,7 @@ export function rankTeamsWhatIf(
   const n = ranked.length;
   while (i < n) {
     let j = i + 1;
-    while (
-      j < n &&
-      Math.abs(Number(ranked[j]!.PPM) - Number(ranked[i]!.PPM)) < 1e-9
-    )
-      j += 1;
+    while (j < n && Math.abs(Number(ranked[j]!.PPM) - Number(ranked[i]!.PPM)) < 1e-9) j += 1;
     const group = ranked.slice(i, j);
     if (group.length === 2 && h2h) {
       group.sort((a, b) => compareTwoClubSamePpmWhatIf(a, b, h2h));
@@ -828,8 +816,8 @@ export function parsePredDate(dateStr: string | undefined): Date {
   const m = dateStr.match(/(\d{2})\/(\d{2})\/(\d{2})\s+(\d{1,2}):(\d{2})(am|pm)/i);
   if (!m) return new Date(0);
   let hr = parseInt(m[4]!, 10);
-  if (m[6]!.toLowerCase() === 'pm' && hr !== 12) hr += 12;
-  if (m[6]!.toLowerCase() === 'am' && hr === 12) hr = 0;
+  if (m[6]!.toLowerCase() === "pm" && hr !== 12) hr += 12;
+  if (m[6]!.toLowerCase() === "am" && hr === 12) hr = 0;
   return new Date(
     2000 + parseInt(m[3]!, 10),
     parseInt(m[1]!, 10) - 1,
@@ -841,17 +829,17 @@ export function parsePredDate(dateStr: string | undefined): Date {
 
 export function abbreviate(name: string, focusTeamName: string | null): string {
   const table: Record<string, string> = {
-    'Silicon Valley Soccer Academy': 'SV Soccer Academy',
-    'Woodside Soccer Club Crush': 'Woodside Crush',
-    'Diablo Valley Futbol Club': 'Diablo Valley FC',
-    'Burlingame Soccer Club': 'Burlingame SC',
-    'Modesto Ajax United': 'Modesto Ajax',
-    'Sacramento United': 'Sacramento Utd',
+    "Silicon Valley Soccer Academy": "SV Soccer Academy",
+    "Woodside Soccer Club Crush": "Woodside Crush",
+    "Diablo Valley Futbol Club": "Diablo Valley FC",
+    "Burlingame Soccer Club": "Burlingame SC",
+    "Modesto Ajax United": "Modesto Ajax",
+    "Sacramento United": "Sacramento Utd",
   };
   if (table[name]) return table[name];
   const ft = focusTeamName;
   if (name === ft) {
-    let s = name.replace(/\s+(Soccer Club|Futbol Club|Academy)$/i, '').trim();
+    let s = name.replace(/\s+(Soccer Club|Futbol Club|Academy)$/i, "").trim();
     if (s.length > 22) return `${s.slice(0, 20)}…`;
     return s;
   }

@@ -8,7 +8,7 @@
 #       python3 build_data.py --from-scrape, then re-embed (U13 NorCal from scraped_matches.json).
 #   ./refresh.sh --from-academy-scrape
 #       python3 build_data.py --from-academy-scrape, then re-embed.
-#       Merges scraped_academy.json + scraped_homegrown.json when present (run scrape_academy.py / scrape_homegrown.py first).
+#       Reads scraped_academy.json (run scrape_academy.py first).
 #
 # For the full multi-division app, serve the directory over HTTP (e.g. python3 -m http.server) so
 # the page can fetch the full data.json. The embed is a slim default division for file:// fallback.

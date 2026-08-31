@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import type { ReactNode } from 'react';
-import type { DivisionData } from '@/lib/tracker/types';
+import type { ReactNode } from "react";
+import type { DivisionData } from "@/lib/tracker/types";
 import {
   buildPredByMatchMap,
   computeWeeklyHybridStandings,
@@ -10,8 +10,8 @@ import {
   normalizeMatchId,
   standingsSnapshotSig,
   weeklyPredParts,
-} from '@/lib/tracker/logic';
-import { GoalDiffTd, RankDelta, TableScroll } from '@/components/tracker/TrackerUi';
+} from "@/lib/tracker/logic";
+import { GoalDiffTd, RankDelta, TableScroll } from "@/components/tracker/TrackerUi";
 
 type Props = {
   data: DivisionData;
@@ -22,14 +22,7 @@ type Props = {
   onWeekChange: (index: number) => void;
 };
 
-export function WeeklyPanel({
-  data,
-  currentWeek,
-  focusTeam,
-  onPrev,
-  onNext,
-  onWeekChange,
-}: Props) {
+export function WeeklyPanel({ data, currentWeek, focusTeam, onPrev, onNext, onWeekChange }: Props) {
   const weekly = data.weekly || [];
   const w = weekly[currentWeek];
   if (!weekly.length || !w) {
@@ -42,26 +35,23 @@ export function WeeklyPanel({
   const predByMatch = buildPredByMatchMap(data);
   const hybridStandings = computeWeeklyHybridStandings(data, currentWeek, predByMatch);
   const hybridPrev =
-    currentWeek > 0
-      ? computeWeeklyHybridStandings(data, currentWeek - 1, predByMatch)
-      : null;
+    currentWeek > 0 ? computeWeeklyHybridStandings(data, currentWeek - 1, predByMatch) : null;
 
   const ftRow = focusTeam ? hybridStandings.find((s) => s.team === focusTeam) : null;
-  const prevFt =
-    focusTeam && hybridPrev ? hybridPrev.find((s) => s.team === focusTeam) : null;
+  const prevFt = focusTeam && hybridPrev ? hybridPrev.find((s) => s.team === focusTeam) : null;
 
   const rankChange = prevFt && ftRow ? prevFt.rank - ftRow.rank : 0;
 
-  const ws = w?.week_start ? new Date(w.week_start + 'T00:00:00') : null;
-  const we = w?.week_end ? new Date(w.week_end + 'T00:00:00') : null;
+  const ws = w?.week_start ? new Date(w.week_start + "T00:00:00") : null;
+  const we = w?.week_end ? new Date(w.week_end + "T00:00:00") : null;
 
   const hybridSig = standingsSnapshotSig(hybridStandings);
   const prevSig = hybridPrev ? standingsSnapshotSig(hybridPrev) : null;
   let subtitle =
-    'Weeks are replayed in order through this date range: each match uses its final score if recorded, otherwise the same projection as the Pred. column (incl. draw if goals are within 0.5). Tiebreakers match the What If tab.';
+    "Weeks are replayed in order through this date range: each match uses its final score if recorded, otherwise the same projection as the Pred. column (incl. draw if goals are within 0.5). Tiebreakers match the What If tab.";
   if (prevSig !== null && hybridSig === prevSig) {
     subtitle =
-      'Same hybrid snapshot as last week. No new games with data (or projections unchanged). ' +
+      "Same hybrid snapshot as last week. No new games with data (or projections unchanged). " +
       subtitle;
   }
 
@@ -80,8 +70,8 @@ export function WeeklyPanel({
           title="Select week"
         >
           {weekly.map((wk, i) => {
-            const d0 = new Date(wk.week_start + 'T00:00:00');
-            const d1 = new Date(wk.week_end + 'T00:00:00');
+            const d0 = new Date(wk.week_start + "T00:00:00");
+            const d1 = new Date(wk.week_end + "T00:00:00");
             const playedGames = wk.games?.filter((g) => g.played).length ?? 0;
             const tbdGames = wk.games?.filter((g) => !g.played).length ?? 0;
             let label = `Week ${i + 1}: ${formatDateShort(d0)} - ${formatDateShort(d1)}`;
@@ -103,17 +93,19 @@ export function WeeklyPanel({
           Next &rarr;
         </button>
         <span className="week-label" id="week-label">
-          {ws && we ? `${formatDateShort(ws)} - ${formatDateShort(we)}, ${ws.getFullYear()}` : ''}
+          {ws && we ? `${formatDateShort(ws)} - ${formatDateShort(we)}, ${ws.getFullYear()}` : ""}
         </span>
       </div>
 
       <div id="weekly-summary" className="summary-cards">
         {ftRow && (
           <>
-            <div className={`summary-card ${rankChange > 0 ? 'good' : rankChange < 0 ? 'bad' : ''}`}>
+            <div
+              className={`summary-card ${rankChange > 0 ? "good" : rankChange < 0 ? "bad" : ""}`}
+            >
               <div className="value">
                 #{ftRow.rank}
-                {rankChange > 0 ? ` (+${rankChange})` : rankChange < 0 ? ` (${rankChange})` : ''}
+                {rankChange > 0 ? ` (+${rankChange})` : rankChange < 0 ? ` (${rankChange})` : ""}
               </div>
               <div className="label">Focus rank</div>
             </div>
@@ -121,15 +113,15 @@ export function WeeklyPanel({
               <div className="value">{ftRow.PTS}</div>
               <div className="label">Points</div>
             </div>
-            <div className={`summary-card ${ftRow.rank <= 6 ? 'good' : 'bad'}`}>
+            <div className={`summary-card ${ftRow.rank <= 6 ? "good" : "bad"}`}>
               <div className="value">
                 {ftRow.W}W-{ftRow.L}L-{ftRow.T}T
               </div>
               <div className="label">Record</div>
             </div>
-            <div className={`summary-card ${(ftRow.GD ?? 0) >= 0 ? 'good' : 'bad'}`}>
+            <div className={`summary-card ${(ftRow.GD ?? 0) >= 0 ? "good" : "bad"}`}>
               <div className="value">
-                {(ftRow.GD ?? 0) > 0 ? '+' : ''}
+                {(ftRow.GD ?? 0) > 0 ? "+" : ""}
                 {ftRow.GD}
               </div>
               <div className="label">Goal Diff</div>
@@ -161,44 +153,44 @@ export function WeeklyPanel({
               {(w?.games || []).map((g, gi) => {
                 const homeF = isFocusTeam(g.home, focusTeam);
                 const awayF = isFocusTeam(g.away, focusTeam);
-                const rowClass = homeF || awayF ? 'highlight' : '';
+                const rowClass = homeF || awayF ? "highlight" : "";
                 const pr = predByMatch[normalizeMatchId(g.match_id)];
-                let scoreClass = 'tbd';
-                let scoreText = '—';
+                let scoreClass = "tbd";
+                let scoreText = "—";
                 if (g.played) {
                   const hg = Number(g.home_goals);
                   const ag = Number(g.away_goals);
-                  if (hg > ag) scoreClass = homeF ? 'win' : awayF ? 'loss' : '';
-                  else if (hg < ag) scoreClass = awayF ? 'win' : homeF ? 'loss' : '';
-                  else scoreClass = 'draw';
+                  if (hg > ag) scoreClass = homeF ? "win" : awayF ? "loss" : "";
+                  else if (hg < ag) scoreClass = awayF ? "win" : homeF ? "loss" : "";
+                  else scoreClass = "draw";
                   scoreText = `${hg} : ${ag}`;
                 } else if (!pr) {
-                  scoreText = 'TBD';
+                  scoreText = "TBD";
                 }
                 const parts = weeklyPredParts(pr);
                 return (
                   <tr key={gi} className={rowClass}>
-                    <td>{g.date || '-'}</td>
+                    <td>{g.date || "-"}</td>
                     <td className="team-name">
                       {homeF ? <span className="focus-indicator">{g.home}</span> : g.home}
                     </td>
                     <td className={`score ${scoreClass}`}>{scoreText}</td>
                     <td className={parts.predClass}>
                       {!pr || pr.est_home_goals == null ? (
-                        '—'
-                      ) : parts.eff === 'draw' ? (
+                        "—"
+                      ) : parts.eff === "draw" ? (
                         <>
-                          <span className="pred-proj-tie">{parts.hStr}</span> :{' '}
+                          <span className="pred-proj-tie">{parts.hStr}</span> :{" "}
                           <span className="pred-proj-tie">{parts.aStr}</span>
                         </>
-                      ) : parts.eff === 'home_win' ? (
+                      ) : parts.eff === "home_win" ? (
                         <>
-                          <span className="pred-proj-win">{parts.hStr}</span> :{' '}
+                          <span className="pred-proj-win">{parts.hStr}</span> :{" "}
                           <span>{parts.aStr}</span>
                         </>
                       ) : (
                         <>
-                          <span>{parts.hStr}</span> :{' '}
+                          <span>{parts.hStr}</span> :{" "}
                           <span className="pred-proj-win">{parts.aStr}</span>
                         </>
                       )}
@@ -206,7 +198,7 @@ export function WeeklyPanel({
                     <td className="team-name">
                       {awayF ? <span className="focus-indicator">{g.away}</span> : g.away}
                     </td>
-                    <td className="team-name team-col--wide-venue">{g.venue || '-'}</td>
+                    <td className="team-name team-col--wide-venue">{g.venue || "-"}</td>
                   </tr>
                 );
               })}
@@ -239,12 +231,9 @@ export function WeeklyPanel({
             {standingsSorted.map((s) => {
               const isFt = isFocusTeam(s.team, focusTeam);
               const isCutoff = s.rank === 6;
-              const classes = [
-                isFt ? 'highlight' : '',
-                isCutoff ? 'rank-cutoff' : '',
-              ]
+              const classes = [isFt ? "highlight" : "", isCutoff ? "rank-cutoff" : ""]
                 .filter(Boolean)
-                .join(' ');
+                .join(" ");
               let rankDelta: ReactNode = null;
               if (hybridPrev) {
                 const prevStanding = hybridPrev.find((ps) => ps.team === s.team);

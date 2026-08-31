@@ -1,0 +1,15 @@
+# Generated pipeline output — build_data.py / export-divisions.mjs write these.
+data.json
+public/data.json
+public/divisions/
+
+# refresh.sh re-embeds the division bundle here as one very long line.
+# Letting Prettier reflow it turns every data refresh into a huge diff.
+public/index.html
+
+# Generated / vendored
+pnpm-lock.yaml
+next-env.d.ts
+.next/
+node_modules/
+.venv/

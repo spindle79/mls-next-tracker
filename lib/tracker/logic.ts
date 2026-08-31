@@ -839,7 +839,7 @@ export function abbreviate(name: string, focusTeamName: string | null): string {
   if (table[name]) return table[name];
   const ft = focusTeamName;
   if (name === ft) {
-    let s = name.replace(/\s+(Soccer Club|Futbol Club|Academy)$/i, "").trim();
+    const s = name.replace(/\s+(Soccer Club|Futbol Club|Academy)$/i, "").trim();
     if (s.length > 22) return `${s.slice(0, 20)}…`;
     return s;
   }

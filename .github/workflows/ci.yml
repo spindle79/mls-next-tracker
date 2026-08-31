@@ -12,14 +12,14 @@ concurrency:
 
 jobs:
   ci:
-    name: Lint
+    name: Lint, format & build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
+      # No `version:` here — package.json's `packageManager` field is the single
+      # source of truth. Specifying both makes action-setup fail outright.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - uses: actions/setup-node@v5
         with:
@@ -29,5 +29,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check formatting
+        run: pnpm format:check
+
       - name: Lint
         run: pnpm lint
+
+      # Also type-checks: `next build` runs tsc. data.json is gitignored, so
+      # the prebuild shard step no-ops and the app falls back to its embedded
+      # default division.
+      - name: Build
+        run: pnpm build

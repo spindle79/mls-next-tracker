@@ -4,7 +4,7 @@ export interface DivisionCatalogEntry {
   id: string;
   age_label?: string;
   division?: string;
-  /** academy | homegrown | … when multi-league roots merge scrapes */
+  /** league slug from the scrape bundle (currently always `academy`) */
   league?: string;
 }
 

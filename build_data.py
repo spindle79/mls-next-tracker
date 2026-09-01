@@ -158,7 +158,7 @@ DEFAULT_PREDICTION_PARAMS = {
     'opp_adj_iters': 12,
     # Blend toward simple shrunk GF/GA lambdas: h2h aggregates home+away legs, so full opponent-adj only (~1.0)
     # hurts backtest calibration; retune after venue splits (see backtest_predictions).
-    # Retuned together with venue helpers (backtest_predictions.py --from-scrape).
+    # Retuned together with venue helpers (backtest_predictions.py).
     'opp_adj_blend': 0.31,
     # Max fraction of venue split when blending simple λ (home GF/match vs away GA/match, etc.).
     # On our historical backtest, >0 slightly raises mean log loss vs overall GF/GA; leave 0 for best fit,

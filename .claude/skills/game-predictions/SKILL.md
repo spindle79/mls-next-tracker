@@ -157,25 +157,60 @@ is realistic.
 
 Always name the division and age group — "#9" is meaningless across 120 divisions.
 
-## Backtesting and tuning — currently broken
+## Backtesting
 
-`backtest_predictions.py` and `tune_prediction_params.py` **do not run against the current
-pipeline.** They read legacy single-division inputs that nothing writes any more:
+`backtest_predictions.py` walks each division week by week, predicting each finished match
+from standings + H2H **before that week only**, then scoring it. It reads
+`scraped_academy.json` and runs every division independently — standings, league averages and
+H2H are only meaningful within a division — then pools the per-game rows.
 
-- `--from-scrape` → `scraped_matches.json` + `scraped_standings.json`
-- no flag → `page1.html` / `page2.html`
+```bash
+.venv/bin/python backtest_predictions.py                     # all 120 divisions
+.venv/bin/python backtest_predictions.py --ages U14          # one age group
+.venv/bin/python backtest_predictions.py --divisions Pioneer # one division, all ages
+.venv/bin/python backtest_predictions.py --json-out bt.json  # full rows + aggregates
+```
 
-Running it today fails with `Missing input file: .../scraped_matches.json`.
+`--params-json '{...}'` overrides `DEFAULT_PREDICTION_PARAMS` for an A/B check.
 
-Do not hand the user one of these commands as if it works. Wiring them to
-`scraped_academy.json` (per-division, or pooled across divisions) is a real task worth doing
-before any tuning claim is made — see P5 in `docs/plans/last-season-prior.md`, which also
-notes that with only tens of completed matches there is nothing meaningful to tune against
-yet.
+**Read the by-MP-bucket table, not just the headline number.** Results are bucketed on
+`min(home_MP, away_MP)` before the match — 1-3, 4-7, 8-11, 12+ — because a pooled average
+hides everything that matters about early-season calibration. Also check `by_division` in the
+JSON: one division far worse than the rest usually means a data problem, not a model problem.
+
+Interpretation: **accuracy** is whether the highest-probability outcome matched; **mean log
+loss** rewards calibration (lower is better). Inspect the highest-log-loss rows and
+`favorite_wrong` flags to form hypotheses.
+
+A match is only scored when **both** clubs have already played, so each team's first result is
+never evaluated. Early in a season that can mean zero scored games league-wide — the script
+says so explicitly rather than printing a meaningless zero.
 
 ## Tuning the prediction model
 
-Once the backtest is wired up:
+`tune_prediction_params.py` random-searches the parameter space against that same backtest:
+
+```bash
+.venv/bin/python tune_prediction_params.py --ages U14 --trials 60
+```
+
+It reports each trial's log loss as a delta against the baseline **and** its per-bucket
+breakdown, then recommends a merge into `DEFAULT_PREDICTION_PARAMS`. Two guards to respect
+rather than work around:
+
+- Under 200 scored games it **withholds** the recommendation, because a "best" config from a
+  few dozen games is fitting noise. `--allow-small-sample` overrides it; do not reach for that
+  casually.
+- If nothing beat the baseline it says so instead of recommending the least-bad trial.
+
+A config that buys a small overall gain by regressing the high-MP buckets is a bad trade —
+check the buckets before merging anything.
+
+Cost scales with divisions × played matches × trials: roughly 11s per trial across all 120
+divisions with a full season, so a 140-trial sweep is ~25 minutes. Narrow with `--ages` while
+iterating.
+
+When changing the model:
 
 1. Prefer editing `DEFAULT_PREDICTION_PARAMS` in `build_data.py` (documented keys) over
    changing structure.

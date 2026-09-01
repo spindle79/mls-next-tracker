@@ -1,7 +1,19 @@
 #!/usr/bin/env python3
 """
-Random search over PREDICTION_PARAMS using the same backtest as backtest_predictions.py.
-Run: python3 tune_prediction_params.py --from-scrape
+Random search over DEFAULT_PREDICTION_PARAMS, scored by the same walk-forward
+backtest as backtest_predictions.py.
+
+Reads `scraped_academy.json`. Weeks are parsed once and replayed per trial, so
+trial cost is the prediction work itself.
+
+Cost scales with divisions x played matches x trials. A full-season 20-division
+age group backtests in roughly 2s, so ~11s per trial across all 120 divisions —
+a 140-trial sweep is ~25 minutes. Narrow with --ages / --divisions while
+iterating.
+
+Usage:
+  python3 tune_prediction_params.py --ages U14 --trials 60
+  python3 tune_prediction_params.py --trials 200 --json-out tuning.json
 """
 
 import argparse
@@ -10,72 +22,155 @@ import random
 import sys
 
 from build_data import DEFAULT_PREDICTION_PARAMS
-from backtest_predictions import load_team_names_and_matches, run_backtest, summarize
+from backtest_predictions import DEFAULT_INPUT, load_divisions, run_backtest, summarize
+
+# Below this many scored games, a "best" configuration is noise. The 26/27
+# season opened with 37 completed matches league-wide, which is nowhere near
+# enough — see docs/plans/last-season-prior.md.
+MIN_GAMES_TO_RECOMMEND = 200
 
 
 def random_params(rng):
+    """Sample the tunable space.
+
+    Ranges bracket the current defaults deliberately: the previous version
+    searched shrink_pseudo_mp in [3.0, 6.5] while the default was 2.93 and
+    draw_cap in [0.26, 0.34] while the default was 0.252, so it could not
+    reproduce — let alone beat — its own baseline.
+    """
     return {
-        'shrink_pseudo_mp': rng.uniform(3.0, 6.5),
-        'home_strength_bonus': rng.uniform(0.06, 0.16),
-        'h2h_full_games': rng.choice([2, 3, 4]),
-        'draw_floor': rng.uniform(0.13, 0.20),
-        'draw_cap': rng.uniform(0.26, 0.34),
-        'draw_decay': rng.uniform(0.30, 0.55),
-        'margin_split_scale': rng.uniform(0.75, 1.15),
-        'scoreline_blend_max': rng.uniform(0.22, 0.48),
-        'scoreline_target_draw': rng.uniform(0.22, 0.32),
-        'prob_floor': rng.uniform(0.068, 0.11),
+        # Composite strength
+        'shrink_pseudo_mp': rng.uniform(1.5, 6.5),
+        'home_strength_bonus': rng.uniform(0.02, 0.16),
+        'h2h_full_games': rng.choice([2, 3, 4, 5]),
+        # Outcome probabilities
+        'draw_floor': rng.uniform(0.10, 0.20),
+        'draw_cap': rng.uniform(0.20, 0.34),
+        'draw_decay': rng.uniform(0.25, 0.70),
+        'margin_split_scale': rng.uniform(0.70, 1.40),
+        'scoreline_blend_max': rng.uniform(0.15, 0.48),
+        'scoreline_target_draw': rng.uniform(0.18, 0.32),
+        'prob_floor': rng.uniform(0.04, 0.11),
+        # Goal model — absent from the old search space entirely
+        'goal_shrink_pseudo_mp': rng.uniform(1.5, 6.0),
+        'home_goal_mult': rng.uniform(0.98, 1.18),
+        'opp_adj_blend': rng.uniform(0.0, 0.7),
+        'venue_split_blend_max': rng.uniform(0.0, 0.5),
     }
 
 
 def clamp_params(p):
-    """Keep draw_cap >= draw_floor + small gap."""
+    """Enforce the ordering the model assumes."""
     if p['draw_cap'] <= p['draw_floor']:
         p['draw_cap'] = p['draw_floor'] + 0.08
     return p
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--from-scrape', action='store_true')
+    parser = argparse.ArgumentParser(description='Random search over prediction params')
+    parser.add_argument('--input', default=DEFAULT_INPUT, help='Scrape bundle to tune against')
+    parser.add_argument('--ages', default='', help='Comma-separated age labels, e.g. U14')
+    parser.add_argument('--divisions', default='', help='Comma-separated division names')
     parser.add_argument('--trials', type=int, default=140)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--top', type=int, default=8)
+    parser.add_argument('--json-out', default='', help='Write all trial results here')
+    parser.add_argument(
+        '--allow-small-sample',
+        action='store_true',
+        help=f'Emit a recommendation even under {MIN_GAMES_TO_RECOMMEND} scored games',
+    )
     args = parser.parse_args()
 
-    rng = random.Random(args.seed)
+    ages = [a for a in args.ages.split(',') if a.strip()]
+    divs = [d for d in args.divisions.split(',') if d.strip()]
+
     try:
-        team_names, all_matches = load_team_names_and_matches(args.from_scrape)
+        divisions = load_divisions(args.input, ages or None, divs or None)
     except FileNotFoundError as e:
-        print(e, file=sys.stderr)
+        print(f'Missing input file: {e}', file=sys.stderr)
+        print('Run: python3 scrape_academy.py', file=sys.stderr)
         sys.exit(1)
 
-    # Baseline: baked-in defaults in build_data
-    base_rows, _ = run_backtest(team_names, all_matches, None)
+    if not divisions:
+        print('No divisions matched the filters.', file=sys.stderr)
+        sys.exit(1)
+
+    rng = random.Random(args.seed)
+
+    base_rows, _ = run_backtest(divisions, None)
     base = summarize(base_rows)
-    print('Baseline (DEFAULT_PREDICTION_PARAMS):')
-    print(f"  log_loss={base['mean_log_loss']} acc={base['accuracy_pick_max_prob']} n={base['total_games']}")
-    print(json.dumps(DEFAULT_PREDICTION_PARAMS, indent=2))
+    if not base_rows:
+        print(
+            f'Loaded {len(divisions)} divisions but scored 0 games.\n'
+            'predict_single_match needs both clubs to have played before the match it '
+            'predicts, so there is nothing to tune against yet.',
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    n = base['total_games']
+    print(f'Divisions: {len(divisions)}  |  scored games: {n}')
+    print('\nBaseline (DEFAULT_PREDICTION_PARAMS):')
+    print(f"  log_loss={base['mean_log_loss']}  acc={base['accuracy_pick_max_prob']}  n={n}")
+    print(f"  by MP bucket: {json.dumps({k: v['mean_log_loss'] for k, v in base['by_mp_bucket'].items()})}")
     print()
 
     results = []
     for t in range(args.trials):
         p = clamp_params(random_params(rng))
-        rows, _ = run_backtest(team_names, all_matches, p)
+        rows, _ = run_backtest(divisions, p)
         s = summarize(rows)
-        results.append((s['mean_log_loss'], s['accuracy_pick_max_prob'], s['favorite_pick_wrong_count'], p, s))
+        results.append({'params': p, 'summary': s})
+        if (t + 1) % 20 == 0:
+            print(f'  ...{t + 1}/{args.trials} trials', file=sys.stderr)
 
-    results.sort(key=lambda x: (x[0], -x[1]))
+    results.sort(
+        key=lambda r: (r['summary']['mean_log_loss'], -r['summary']['accuracy_pick_max_prob'])
+    )
 
     print(f'Best {args.top} by mean log loss (then accuracy):\n')
-    for i, (ll, acc, fav_wrong, p, s) in enumerate(results[: args.top], 1):
-        print(f"#{i}  log_loss={ll}  acc={acc}  favorite_wrong={fav_wrong}")
-        print(json.dumps(p, indent=2))
+    for i, r in enumerate(results[: args.top], 1):
+        s = r['summary']
+        delta = s['mean_log_loss'] - base['mean_log_loss']
+        print(
+            f"#{i}  log_loss={s['mean_log_loss']} ({delta:+.4f} vs baseline)  "
+            f"acc={s['accuracy_pick_max_prob']}  favorite_wrong={s['favorite_pick_wrong_count']}"
+        )
+        print(f"    by MP bucket: {json.dumps({k: v['mean_log_loss'] for k, v in s['by_mp_bucket'].items()})}")
+        print(json.dumps(r['params'], indent=2))
         print()
 
-    best = results[0][3]
+    best = results[0]
+    improved = best['summary']['mean_log_loss'] < base['mean_log_loss']
+
+    if args.json_out:
+        with open(args.json_out, 'w') as f:
+            json.dump({'baseline': base, 'trials': results}, f, indent=2)
+        print(f'Wrote {args.json_out}\n')
+
+    if n < MIN_GAMES_TO_RECOMMEND and not args.allow_small_sample:
+        print(
+            f'NO RECOMMENDATION — only {n} scored games (want >= {MIN_GAMES_TO_RECOMMEND}).\n'
+            'A "best" configuration from this few games is fitting noise, and the top\n'
+            'trials above are shown for inspection only. Re-run once more of the season\n'
+            'has been played, or pass --allow-small-sample if you understand the risk.'
+        )
+        return
+
+    if not improved:
+        print(
+            'NO RECOMMENDATION — no sampled configuration beat the baseline.\n'
+            'Keep DEFAULT_PREDICTION_PARAMS as it is, or widen the search space.'
+        )
+        return
+
     print('RECOMMENDED merge into DEFAULT_PREDICTION_PARAMS:\n')
-    print(json.dumps(best, indent=2))
+    print(json.dumps(best['params'], indent=2))
+    print(
+        '\nBefore merging, check the by-MP-bucket line above: a config that buys a small\n'
+        'overall gain by regressing the high-MP buckets is usually a bad trade.'
+    )
 
 
 if __name__ == '__main__':

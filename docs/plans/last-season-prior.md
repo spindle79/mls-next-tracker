@@ -219,11 +219,19 @@ last year tells us nothing about where its id lives this year.
 
 _Proof · one to two days_
 
-`backtest_predictions.py` already walks the season week by week using only information available
-before each week, and reports `mean_log_loss` and `accuracy_pick_max_prob`. One change makes it able
-to answer the question that matters here: **bucket the results by the matches-played count at
-prediction time.** A single season-wide average will hide the effect entirely, because the whole
-benefit is concentrated in the weeks when MP is small.
+**The harness for this now exists.** `backtest_predictions.py` and
+`tune_prediction_params.py` were rewired to read `scraped_academy.json`, walking each of the
+120 divisions independently and pooling the per-game rows. They previously read legacy
+single-division inputs (`scraped_matches.json`, `page1.html`) that the current pipeline never
+writes, so they failed outright.
+
+Results are already **bucketed on `min(home_MP, away_MP)` before the match** — the binding
+constraint, since both sides need a played match for a prediction to exist at all. That
+bucketing is the point: a season-wide average hides the whole effect, because the benefit is
+concentrated in the weeks when MP is small. The tuner reports per-bucket log loss for every
+trial, and withholds a recommendation under 200 scored games.
+
+What remains for this phase is the λ/φ/τ search space and the ablation below.
 
 | Bucket                | Hist. share | Bar to clear                                                |
 | --------------------- | ----------: | ----------------------------------------------------------- |
@@ -232,9 +240,14 @@ benefit is concentrated in the weeks when MP is small.
 | MP 4–7                |       13–6% | Small improvement or neutral                                |
 | MP 8+                 |        < 5% | **No regression.** A loss here means φ or τ is too generous |
 
-Then extend `random_params` and `clamp_params` in `tune_prediction_params.py` to search φ, τ and λ
+Extend `random_params` and `clamp_params` in `tune_prediction_params.py` to search φ, τ and λ
 alongside the existing parameters, and always run λ = 0 as the ablation baseline — if tuned φ and τ
 can't beat λ = 0, the feature isn't earning its complexity and should not ship.
+
+Note that the bucket table below assumes there is something to score. As of the 26/27 opening,
+**zero** games were evaluable league-wide: every completed match was some team's first, and the
+`MP == 0` gate skips those. The backtest reports that state explicitly rather than printing a
+misleading zero.
 
 Worth adding as a unit test rather than trusting the tuner: assert that the historical share is below
 5% once MP ≥ 8, for whatever φ and τ the tuner lands on. The tuner optimizes average log loss and

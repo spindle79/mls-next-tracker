@@ -1,0 +1,12 @@
+{
+  "eval_id": 2,
+  "eval_name": "best-worst",
+  "configuration": "without_skill",
+  "expectations": [
+    {"text": "Describes a best-case scenario with projected rank and points", "passed": true, "evidence": "Best case: win all 8 = 34 PTS, 6th-7th place"},
+    {"text": "Describes a worst-case scenario with projected rank and points", "passed": true, "evidence": "Worst case: lose all 8 = 10 PTS, 14th-15th place"},
+    {"text": "Includes a realistic/middle scenario", "passed": true, "evidence": "5-row scenario table with optimistic (28 PTS), most likely (22 PTS), pessimistic (16 PTS)"},
+    {"text": "Considers how other teams' results affect Glens position", "passed": false, "evidence": "Does not discuss how rival results could change things. Only lists projected standings without considering alternate outcomes for rivals."},
+    {"text": "States the range of possible final points", "passed": true, "evidence": "Clear range: 10 PTS to 34 PTS across 5 scenarios"}
+  ]
+}

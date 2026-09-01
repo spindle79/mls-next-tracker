@@ -1,0 +1,12 @@
+{
+  "eval_id": 2,
+  "eval_name": "best-worst",
+  "configuration": "with_skill",
+  "expectations": [
+    {"text": "Describes a best-case scenario with projected rank and points", "passed": true, "evidence": "Best case: win all 8 = 34 PTS, rank #6-7. Includes full table of which teams Glens would leapfrog"},
+    {"text": "Describes a worst-case scenario with projected rank and points", "passed": true, "evidence": "Worst case: lose all 8 = 10 PTS, rank #14-15. Includes table of teams still below"},
+    {"text": "Includes a realistic/middle scenario", "passed": true, "evidence": "5-row scenario table from best to worst including 'Optimistic' (28 PTS, #7-8) and 'Model prediction' (22 PTS, #11-12)"},
+    {"text": "Considers how other teams' results affect Glens position", "passed": true, "evidence": "Discusses Modesto losing to top teams dropping to 29-32 PTS, and identifies the #7-11 cluster as real targets"},
+    {"text": "States the range of possible final points", "passed": true, "evidence": "Clear range: 10 PTS (worst) to 34 PTS (best), with realistic range of 22-28"}
+  ]
+}

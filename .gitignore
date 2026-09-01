@@ -28,6 +28,7 @@ page2.html
 .vscode/
 .idea/
 
-# Local Claude / AI agent settings (per-machine, not portable)
+# Local Claude settings only — machine-specific permission grants and absolute
+# paths. Project skills under .claude/skills/ ARE tracked: they encode the feed
+# gotchas anyone working on this repo needs.
 .claude/settings.local.json
-.claude/skills/

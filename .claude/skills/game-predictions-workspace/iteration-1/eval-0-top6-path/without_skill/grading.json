@@ -1,0 +1,13 @@
+{
+  "eval_id": 0,
+  "eval_name": "top6-path",
+  "configuration": "without_skill",
+  "expectations": [
+    {"text": "States the Glens' current rank and points total", "passed": true, "evidence": "States '12th with 7 points from 8 matches' (uses website standings, not including manual result)"},
+    {"text": "Identifies the 6th place team and their points", "passed": true, "evidence": "Identifies Elk Grove at 12 points and Modesto Ajax projected 6th at 35 PTS"},
+    {"text": "Lists or counts the Glens' remaining games", "passed": true, "evidence": "Table of 8 remaining games (says 9 in text but lists 8) with win probabilities"},
+    {"text": "Provides at least one concrete scenario", "passed": false, "evidence": "Only mentions winning all 9 games = 34 PTS. No intermediate scenarios like 'win 6 of 8'"},
+    {"text": "Calculates or mentions the maximum possible points", "passed": true, "evidence": "States winning all games yields ~34 total"},
+    {"text": "Gives actionable advice", "passed": true, "evidence": "Suggests realistic goal of 8th-10th range, winning 4 favorable matches plus stealing a result vs Napa"}
+  ]
+}

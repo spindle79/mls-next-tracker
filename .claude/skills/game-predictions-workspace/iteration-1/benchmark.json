@@ -1,0 +1,64 @@
+{
+  "skill_name": "game-predictions",
+  "iteration": 1,
+  "timestamp": "2026-03-19T02:40:00Z",
+  "configurations": [
+    {
+      "name": "with_skill",
+      "description": "With game-predictions skill loaded",
+      "pass_rate": 1.0,
+      "total_assertions": 16,
+      "passed_assertions": 16,
+      "mean_tokens": 53406,
+      "mean_duration_seconds": 137.1
+    },
+    {
+      "name": "without_skill",
+      "description": "Baseline without any skill",
+      "pass_rate": 0.875,
+      "total_assertions": 16,
+      "passed_assertions": 14,
+      "mean_tokens": 42315,
+      "mean_duration_seconds": 163.5
+    }
+  ],
+  "evals": [
+    {
+      "eval_id": 0,
+      "eval_name": "top6-path",
+      "prompt": "Can the Glens make top 6? What do they need to do?",
+      "results": {
+        "with_skill": {"pass_rate": 1.0, "passed": 6, "total": 6, "tokens": 54990, "duration_seconds": 135.6},
+        "without_skill": {"pass_rate": 0.833, "passed": 5, "total": 6, "tokens": 29529, "duration_seconds": 146.8}
+      }
+    },
+    {
+      "eval_id": 1,
+      "eval_name": "key-games",
+      "prompt": "Which of our remaining games matter the most?",
+      "results": {
+        "with_skill": {"pass_rate": 1.0, "passed": 5, "total": 5, "tokens": 46342, "duration_seconds": 135.6},
+        "without_skill": {"pass_rate": 1.0, "passed": 5, "total": 5, "tokens": 50269, "duration_seconds": 198.0}
+      }
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "best-worst",
+      "prompt": "What's our best case and worst case for the rest of the season?",
+      "results": {
+        "with_skill": {"pass_rate": 1.0, "passed": 5, "total": 5, "tokens": 58885, "duration_seconds": 140.2},
+        "without_skill": {"pass_rate": 0.8, "passed": 4, "total": 5, "tokens": 47146, "duration_seconds": 145.0}
+      }
+    }
+  ],
+  "analysis": {
+    "summary": "The with-skill configuration passed all 16 assertions (100%) vs baseline at 14/16 (87.5%). The skill improved output on two dimensions: (1) providing multiple concrete scenarios instead of just extremes in the top-6 analysis, and (2) considering rival team results in the best/worst case analysis. Both configurations performed equally well on the key-games eval, suggesting the skill's biggest value-add is in structured scenario analysis rather than game prioritization.",
+    "discriminating_assertions": [
+      "Provides at least one concrete scenario (eval 0) - with_skill provided 5 scenarios, baseline only mentioned winning all games",
+      "Considers how other teams' results affect Glens position (eval 2) - with_skill discussed Modesto dropping points, baseline did not"
+    ],
+    "non_discriminating_assertions": [
+      "All eval 1 assertions passed for both configurations - game prioritization works well without the skill"
+    ]
+  }
+}

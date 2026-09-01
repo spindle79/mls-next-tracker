@@ -1,0 +1,12 @@
+{
+  "eval_id": 2,
+  "eval_name": "best-worst",
+  "prompt": "What's our best case and worst case for the rest of the season?",
+  "assertions": [
+    {"id": "best_case", "text": "Describes a best-case scenario with projected rank and points", "type": "content_check"},
+    {"id": "worst_case", "text": "Describes a worst-case scenario with projected rank and points", "type": "content_check"},
+    {"id": "realistic", "text": "Includes a realistic/middle scenario (not just extremes)", "type": "quality_check"},
+    {"id": "other_teams", "text": "Considers how other teams' results affect the Glens' position", "type": "quality_check"},
+    {"id": "point_range", "text": "States the range of possible final points", "type": "content_check"}
+  ]
+}

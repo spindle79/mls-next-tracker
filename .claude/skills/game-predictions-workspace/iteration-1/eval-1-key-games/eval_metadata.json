@@ -1,0 +1,12 @@
+{
+  "eval_id": 1,
+  "eval_name": "key-games",
+  "prompt": "Which of our remaining games matter the most?",
+  "assertions": [
+    {"id": "lists_games", "text": "Lists specific remaining Glens games with opponents", "type": "content_check"},
+    {"id": "opponent_rank", "text": "References opponent rankings or strength", "type": "content_check"},
+    {"id": "prioritized", "text": "Ranks or categorizes games by importance (not just a flat list)", "type": "quality_check"},
+    {"id": "rationale", "text": "Explains WHY certain games matter more (e.g., direct competitors for position)", "type": "quality_check"},
+    {"id": "win_probs", "text": "Includes win probabilities or predicted outcomes", "type": "content_check"}
+  ]
+}

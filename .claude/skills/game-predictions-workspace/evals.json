@@ -1,0 +1,23 @@
+{
+  "skill_name": "game-predictions",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "Can the Glens make top 6? What do they need to do?",
+      "expected_output": "Analysis of current standings, gap to 6th place, remaining games, and realistic scenarios showing how many wins are needed",
+      "files": []
+    },
+    {
+      "id": 1,
+      "prompt": "Which of our remaining games matter the most?",
+      "expected_output": "Ranked list of remaining Glens games by importance, considering opponent rank and competitive positioning",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "What's our best case and worst case for the rest of the season?",
+      "expected_output": "Best case (win all) and worst case (lose all) projections with projected final rank for each scenario",
+      "files": []
+    }
+  ]
+}

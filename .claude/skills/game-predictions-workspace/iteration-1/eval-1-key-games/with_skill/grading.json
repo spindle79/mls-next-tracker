@@ -1,0 +1,12 @@
+{
+  "eval_id": 1,
+  "eval_name": "key-games",
+  "configuration": "with_skill",
+  "expectations": [
+    {"text": "Lists specific remaining Glens games with opponents", "passed": true, "evidence": "Full table of all 8 games with dates, H/A, opponent, rank, PTS, win prob, prediction"},
+    {"text": "References opponent rankings or strength", "passed": true, "evidence": "Includes opponent rank, current PTS, PPM, and projected final PTS for each opponent"},
+    {"text": "Ranks or categorizes games by importance", "passed": true, "evidence": "Three-tier system: Tier 1 (Season-Defining), Tier 2 (Points-Banking), Tier 3 (Bonus)"},
+    {"text": "Explains WHY certain games matter more", "passed": true, "evidence": "Detailed rationale for each game, e.g., Elk Grove as '6-point swing', Napa as 'closest rival to overtake'"},
+    {"text": "Includes win probabilities or predicted outcomes", "passed": true, "evidence": "Win probabilities for all 8 games (81%, 5%, 19.6%, 85%, 18.1%, 58.3%, 85%, 36.9%)"}
+  ]
+}

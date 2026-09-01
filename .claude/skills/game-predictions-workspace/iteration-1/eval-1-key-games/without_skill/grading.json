@@ -1,0 +1,12 @@
+{
+  "eval_id": 1,
+  "eval_name": "key-games",
+  "configuration": "without_skill",
+  "expectations": [
+    {"text": "Lists specific remaining Glens games with opponents", "passed": true, "evidence": "Full table of all 8 games with dates, opponents, H/A, rank, win prob, prediction"},
+    {"text": "References opponent rankings or strength", "passed": true, "evidence": "Includes opponent rank, PTS, PPM, and detailed stats for key opponents"},
+    {"text": "Ranks or categorizes games by importance", "passed": true, "evidence": "Four-tier system: Must-Win, Expected Wins, Competitive, Long Shot"},
+    {"text": "Explains WHY certain games matter more", "passed": true, "evidence": "Good rationale for each game, e.g., impact of wins as '6-point swing', venue details, momentum"},
+    {"text": "Includes win probabilities or predicted outcomes", "passed": true, "evidence": "Full win/loss/draw probabilities for all 8 games including draw percentages"}
+  ]
+}

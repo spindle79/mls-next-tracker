@@ -1,0 +1,13 @@
+{
+  "eval_id": 0,
+  "eval_name": "top6-path",
+  "configuration": "with_skill",
+  "expectations": [
+    {"text": "States the Glens' current rank and points total", "passed": true, "evidence": "States '#12' rank and '10 PTS' with full record breakdown"},
+    {"text": "Identifies the 6th place team and their points", "passed": true, "evidence": "Identifies both current 6th (Elk Grove, 12 PTS) and projected 6th (Modesto Ajax, 35 PTS)"},
+    {"text": "Lists or counts the Glens' remaining games", "passed": true, "evidence": "Full table of all 8 remaining games with dates, opponents, ranks, and win probabilities"},
+    {"text": "Provides at least one concrete scenario", "passed": true, "evidence": "Provides 5 scenarios in a table from 'Win all 8' to 'Win 4 of 8' with projected points and ranks"},
+    {"text": "Calculates or mentions the maximum possible points", "passed": true, "evidence": "States 'Maximum possible points: 10 + (8 x 3) = 34 PTS' implicitly through the win-all scenario"},
+    {"text": "Gives actionable advice", "passed": true, "evidence": "Detailed 5-point 'Minimum Requirements' section plus priority games sorted by impact"}
+  ]
+}

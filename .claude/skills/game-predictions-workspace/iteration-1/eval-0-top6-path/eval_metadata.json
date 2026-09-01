@@ -1,0 +1,13 @@
+{
+  "eval_id": 0,
+  "eval_name": "top6-path",
+  "prompt": "Can the Glens make top 6? What do they need to do?",
+  "assertions": [
+    {"id": "current_rank", "text": "States the Glens' current rank and points total", "type": "content_check"},
+    {"id": "sixth_place", "text": "Identifies the 6th place team and their points", "type": "content_check"},
+    {"id": "remaining_games", "text": "Lists or counts the Glens' remaining games", "type": "content_check"},
+    {"id": "scenarios", "text": "Provides at least one concrete scenario (e.g., 'win X of Y games')", "type": "content_check"},
+    {"id": "max_points", "text": "Calculates or mentions the maximum possible points for the Glens", "type": "content_check"},
+    {"id": "actionable", "text": "Gives actionable advice — not just stats, but what the team needs to do", "type": "quality_check"}
+  ]
+}

@@ -1,7 +1,7 @@
 {
   "name": "mls-next-tracker",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Standings, predictions, and what-if explorer for every MLS NEXT Academy + Homegrown division",
   "packageManager": "pnpm@9.0.0",
   "scripts": {

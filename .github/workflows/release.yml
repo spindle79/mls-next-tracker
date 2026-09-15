@@ -1,0 +1,27 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+# The default workflow token is read-only for this repo, so the job asks for the
+# two scopes release-please needs: contents to tag and publish the release,
+# pull-requests to keep the release PR up to date.
+permissions:
+  contents: write
+  pull-requests: write
+
+# Never cancel a release mid-flight; queue instead.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Maintain release PR and publish tagged releases
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

@@ -649,41 +649,36 @@ def build_week_by_week(all_matches, team_names):
 
 
 def apply_match_result(home, away, hg, ag, standings, h2h):
-    """Update standings and head-to-head after a finished match (home/away are team names)."""
+    """Update standings and head-to-head after a finished match (home/away are team names).
+
+    In an interlocking schedule a division's fixture list includes opponents from a
+    sibling division, who have no row in this table. Each side is credited only if
+    it is ranked here, so the visiting division's teams are ignored rather than the
+    whole result being discarded.
+    """
+    for team, gf, ga, venue in ((home, hg, ag, "home"), (away, ag, hg, "away")):
+        s = standings.get(team)
+        if s is None:
+            continue
+        s["MP"] += 1
+        s[f"{venue}_MP"] += 1
+        s["GF"] += gf
+        s["GA"] += ga
+        s["GD"] = s["GF"] - s["GA"]
+        s[f"{venue}_GF"] += gf
+        s[f"{venue}_GA"] += ga
+        if gf > ga:
+            s["W"] += 1
+            s["PTS"] += 3
+        elif gf < ga:
+            s["L"] += 1
+        else:
+            s["T"] += 1
+            s["PTS"] += 1
+
+    # Head-to-head is only a tiebreaker between two ranked teams.
     if home not in standings or away not in standings:
         return
-
-    standings[home]['MP'] += 1
-    standings[home]['home_MP'] += 1
-    standings[home]['GF'] += hg
-    standings[home]['GA'] += ag
-    standings[home]['GD'] = standings[home]['GF'] - standings[home]['GA']
-    standings[home]['home_GF'] += hg
-    standings[home]['home_GA'] += ag
-    if hg > ag:
-        standings[home]['W'] += 1
-        standings[home]['PTS'] += 3
-    elif hg < ag:
-        standings[home]['L'] += 1
-    else:
-        standings[home]['T'] += 1
-        standings[home]['PTS'] += 1
-
-    standings[away]['MP'] += 1
-    standings[away]['away_MP'] += 1
-    standings[away]['GF'] += ag
-    standings[away]['GA'] += hg
-    standings[away]['GD'] = standings[away]['GF'] - standings[away]['GA']
-    standings[away]['away_GF'] += ag
-    standings[away]['away_GA'] += hg
-    if ag > hg:
-        standings[away]['W'] += 1
-        standings[away]['PTS'] += 3
-    elif ag < hg:
-        standings[away]['L'] += 1
-    else:
-        standings[away]['T'] += 1
-        standings[away]['PTS'] += 1
 
     if hg > ag:
         h2h[home][away]['W'] += 1
@@ -829,6 +824,18 @@ def predict_single_match(m, standings, h2h, team_names, params=None):
 
     est_home_goals, est_away_goals = round_predicted_scoreline(raw_home, raw_away)
 
+    # `predicted` is the modal outcome (argmax of the three probabilities) and stays
+    # the quantity the backtest scores. It almost never lands on 'draw', because a
+    # draw's share of the probability mass rarely beats both win shares — so it is a
+    # poor basis for a projected table. The table instead follows the estimated
+    # scoreline, which ties a level score to a genuine draw.
+    if est_home_goals > est_away_goals:
+        projected = 'home_win'
+    elif est_home_goals < est_away_goals:
+        projected = 'away_win'
+    else:
+        projected = 'draw'
+
     home_strength_report = round(home_strength + P['home_strength_bonus'], 3)
     away_strength_report = round(away_strength, 3)
 
@@ -842,6 +849,7 @@ def predict_single_match(m, standings, h2h, team_names, params=None):
         'away_win_prob': round(p_away, 3),
         'draw_prob': round(p_draw, 3),
         'predicted_outcome': predicted,
+        'projected_outcome': projected,
         'est_home_goals': est_home_goals,
         'est_away_goals': est_away_goals,
         'home_strength': home_strength_report,
@@ -849,20 +857,26 @@ def predict_single_match(m, standings, h2h, team_names, params=None):
     }
 
 
-def build_retro_predictions(all_matches, team_names):
+def build_retro_predictions(all_matches, team_names, pool_matches=None, pool_team_names=None):
     """For each finished match, run predict_single_match on state *before* that result (chronological).
 
     Used by the frontend weekly table Pred. column for games that already have scores.
     """
+    # Ratings are walked over the pool (this division plus any sibling division it
+    # interlocks with), but only this division's own games get a prediction.
+    walk_matches = pool_matches or all_matches
+    rating_names = pool_team_names or team_names
+    own_ids = {str(m.get('match_id')) for m in all_matches if m.get('match_id')}
+
     standings = {name: {
         'PTS': 0, 'W': 0, 'L': 0, 'T': 0, 'GF': 0, 'GA': 0, 'GD': 0, 'MP': 0,
         'home_MP': 0, 'away_MP': 0,
         'home_GF': 0, 'home_GA': 0, 'away_GF': 0, 'away_GA': 0,
-    } for name in team_names}
+    } for name in rating_names}
     h2h = defaultdict(lambda: defaultdict(lambda: {'W': 0, 'L': 0, 'T': 0, 'GF': 0, 'GA': 0}))
 
     parsed = []
-    for m in all_matches:
+    for m in walk_matches:
         dt = parse_date(m['date'])
         if dt:
             parsed.append({**m, '_dt': dt})
@@ -876,9 +890,10 @@ def build_retro_predictions(all_matches, team_names):
         mid = m.get('match_id')
         if not mid:
             continue
-        p = predict_single_match(m, standings, h2h, team_names)
-        if p:
-            retro[str(mid)] = p
+        if str(mid) in own_ids:
+            p = predict_single_match(m, standings, h2h, rating_names)
+            if p:
+                retro[str(mid)] = p
         hg, ag = score
         apply_match_result(m['home'], m['away'], hg, ag, standings, h2h)
     return retro
@@ -904,58 +919,43 @@ def predict_remaining(all_matches, standings, h2h, team_names):
 
 
 def simulate_season(predictions, standings, team_names, h2h=None):
-    """Simulate rest of season and produce projected final standings."""
+    """Simulate rest of season and produce projected final standings.
+
+    Predictions may include interlocking fixtures against a sibling division whose
+    teams are not ranked in this table; each side is projected only if it is ranked
+    here, so those games still count for this division's teams.
+    """
     projected = {name: standings[name].copy() for name in team_names}
 
     for p in predictions:
         home = p['home']
         away = p['away']
-        if home not in projected or away not in projected:
+        if home not in projected and away not in projected:
             continue
 
-        projected[home]['MP'] += 1
-        projected[away]['MP'] += 1
-        projected[home]['home_MP'] += 1
-        projected[away]['away_MP'] += 1
-
-        if p['predicted_outcome'] == 'home_win':
-            projected[home]['W'] += 1
-            projected[home]['PTS'] += 3
-            projected[away]['L'] += 1
-            projected[home]['GF'] += p['est_home_goals']
-            projected[home]['GA'] += p['est_away_goals']
-            projected[home]['home_GF'] = projected[home].get('home_GF', 0) + p['est_home_goals']
-            projected[home]['home_GA'] = projected[home].get('home_GA', 0) + p['est_away_goals']
-            projected[away]['GF'] += p['est_away_goals']
-            projected[away]['GA'] += p['est_home_goals']
-            projected[away]['away_GF'] = projected[away].get('away_GF', 0) + p['est_away_goals']
-            projected[away]['away_GA'] = projected[away].get('away_GA', 0) + p['est_home_goals']
-        elif p['predicted_outcome'] == 'away_win':
-            projected[away]['W'] += 1
-            projected[away]['PTS'] += 3
-            projected[home]['L'] += 1
-            projected[home]['GF'] += p['est_home_goals']
-            projected[home]['GA'] += p['est_away_goals']
-            projected[home]['home_GF'] = projected[home].get('home_GF', 0) + p['est_home_goals']
-            projected[home]['home_GA'] = projected[home].get('home_GA', 0) + p['est_away_goals']
-            projected[away]['GF'] += p['est_away_goals']
-            projected[away]['GA'] += p['est_home_goals']
-            projected[away]['away_GF'] = projected[away].get('away_GF', 0) + p['est_away_goals']
-            projected[away]['away_GA'] = projected[away].get('away_GA', 0) + p['est_home_goals']
+        hg, ag = p['est_home_goals'], p['est_away_goals']
+        outcome = p.get('projected_outcome') or p['predicted_outcome']
+        if outcome == 'home_win':
+            results = {home: ('W', 3, hg, ag), away: ('L', 0, ag, hg)}
+        elif outcome == 'away_win':
+            results = {home: ('L', 0, hg, ag), away: ('W', 3, ag, hg)}
         else:
-            projected[home]['T'] += 1
-            projected[away]['T'] += 1
-            projected[home]['PTS'] += 1
-            projected[away]['PTS'] += 1
-            avg = (p['est_home_goals'] + p['est_away_goals']) / 2
-            projected[home]['GF'] += avg
-            projected[home]['GA'] += avg
-            projected[home]['home_GF'] = projected[home].get('home_GF', 0) + avg
-            projected[home]['home_GA'] = projected[home].get('home_GA', 0) + avg
-            projected[away]['GF'] += avg
-            projected[away]['GA'] += avg
-            projected[away]['away_GF'] = projected[away].get('away_GF', 0) + avg
-            projected[away]['away_GA'] = projected[away].get('away_GA', 0) + avg
+            avg = (hg + ag) / 2
+            results = {home: ('T', 1, avg, avg), away: ('T', 1, avg, avg)}
+
+        for team, venue in ((home, 'home'), (away, 'away')):
+            t = projected.get(team)
+            if t is None:
+                continue
+            outcome, pts, gf, ga = results[team]
+            t['MP'] += 1
+            t[f'{venue}_MP'] += 1
+            t[outcome] += 1
+            t['PTS'] += pts
+            t['GF'] += gf
+            t['GA'] += ga
+            t[f'{venue}_GF'] = t.get(f'{venue}_GF', 0) + gf
+            t[f'{venue}_GA'] = t.get(f'{venue}_GA', 0) + ga
 
     ranked = []
     for name in team_names:
@@ -1060,14 +1060,27 @@ def make_division_id(league_slug, division_title: str, age_label: str = '') -> s
 def build_division_output(
     team_names, all_matches, current_standings, *,
     division, highlight_team, target_rank, division_id=None,
-    age_label=None, league=None,
+    age_label=None, league=None, pool_team_names=None, pool_matches=None,
 ):
-    """Run predictions + projections for one division and return the client bundle."""
+    """Run predictions + projections for one division and return the client bundle.
+
+    `pool_*` carry the wider rating pool when this division interlocks with a sibling
+    (NorCal Coast <-> Redwood): opponents from the sibling division need a rating for
+    their fixtures to be predictable, but only `team_names` is ranked and displayed.
+    """
     weekly_data, h2h, final_standings = build_week_by_week(all_matches, team_names)
 
-    retro_predictions = build_retro_predictions(all_matches, team_names)
+    if pool_team_names and set(pool_team_names) != set(team_names):
+        _, rating_h2h, rating_standings = build_week_by_week(pool_matches, pool_team_names)
+    else:
+        pool_team_names, pool_matches = team_names, all_matches
+        rating_h2h, rating_standings = h2h, final_standings
 
-    predictions = predict_remaining(all_matches, final_standings, h2h, team_names)
+    retro_predictions = build_retro_predictions(
+        all_matches, team_names, pool_matches, pool_team_names
+    )
+
+    predictions = predict_remaining(all_matches, rating_standings, rating_h2h, pool_team_names)
 
     projected_final = simulate_season(predictions, final_standings, team_names, h2h)
 
@@ -1145,6 +1158,19 @@ def main():
 
             for ag in academy.get('age_groups') or []:
                 age_label = ag.get('age_label') or ''
+                # Divisions that interlock share match ids (the same fixture is filed
+                # under both). Those siblings form one rating pool: a team can only be
+                # projected against an opponent the model has a rating for.
+                div_ids = {}
+                for db in ag.get('divisions') or []:
+                    ids = set()
+                    for t in db.get('teams') or []:
+                        ids.update(str(m['match_id']) for m in (t.get('matches') or []) if m.get('match_id'))
+                    div_ids[db.get('division')] = ids
+                siblings = {
+                    name: [other for other, oids in div_ids.items() if other != name and ids & oids]
+                    for name, ids in div_ids.items()
+                }
                 for div_block in ag.get('divisions') or []:
                     div_title = div_block.get('division') or 'Unknown Division'
                     teams_raw = div_block.get('teams') or []
@@ -1173,6 +1199,24 @@ def main():
                     highlight = GLENS if GLENS in team_names else None
                     div_id = make_division_id(league_slug, div_title, age_label)
 
+                    pool_team_names, pool_matches = team_names, all_matches
+                    sib_names = siblings.get(div_title) or []
+                    if sib_names:
+                        pool_teams = list(scraped_teams)
+                        for db in ag.get('divisions') or []:
+                            if db.get('division') in sib_names:
+                                pool_teams += [
+                                    {'name': t['name'], 'matches': t.get('matches') or []}
+                                    for t in (db.get('teams') or [])
+                                ]
+                        pool_team_names, pool_matches, _ = load_from_scrape_rows(pool_teams)
+                        if EXCLUDED_TEAMS:
+                            pool_team_names, pool_matches, _ = filter_excluded_teams(
+                                pool_team_names, pool_matches, []
+                            )
+                        print(f"  interlocks with {', '.join(sib_names)} — "
+                              f"rating pool {len(pool_team_names)} teams, {len(pool_matches)} matches")
+
                     print("  Building week-by-week standings...")
                     bundle = build_division_output(
                         team_names, all_matches, current_standings,
@@ -1182,6 +1226,8 @@ def main():
                         division_id=div_id,
                         age_label=age_label,
                         league=league_slug,
+                        pool_team_names=pool_team_names,
+                        pool_matches=pool_matches,
                     )
                     print(f"  {len(bundle['weekly'])} weeks of data")
                     print(f"  {len(bundle['retro_predictions'])} retro predictions; {len(bundle['predictions'])} remaining preds")

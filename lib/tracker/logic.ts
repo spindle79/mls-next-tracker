@@ -132,7 +132,12 @@ export function isFocusTeam(name: string, focus: string | null): boolean {
   return focus != null && name === focus;
 }
 
+/** The outcome the projected table is built from: the scoreline's verdict, not the
+ *  modal outcome. `predicted_outcome` remains the argmax of the three probabilities
+ *  and is what the backtest scores, but it lands on "draw" for well under 1% of
+ *  fixtures, so using it here would show a win beside a level score. */
 export function effectivePredictedOutcome(p: PredictionRow): string {
+  if (p.projected_outcome) return String(p.projected_outcome);
   const h = Math.round(Number(p.est_home_goals));
   const a = Math.round(Number(p.est_away_goals));
   if (Number.isFinite(h) && Number.isFinite(a) && h === a) return "draw";
@@ -269,61 +274,69 @@ function applyPredictionToStandingsAndH2h(
 ) {
   const home = p.home;
   const away = p.away;
-  if (!standings[home] || !standings[away]) return;
+  // An interlocking fixture's opponent sits in a sibling division and has no row
+  // here. Credit whichever side is ranked in this table rather than dropping the
+  // game, so those fixtures still count towards this division's teams.
+  const h = standings[home];
+  const aw = standings[away];
+  if (!h && !aw) return;
+
   const outcome = effectivePredictedOutcome(p);
   const eh = Number(p.est_home_goals);
   const ea = Number(p.est_away_goals);
-  const h = standings[home]!;
-  const aw = standings[away]!;
-  h.MP += 1;
-  aw.MP += 1;
-  if (outcome === "home_win") {
-    h.W += 1;
-    h.PTS += 3;
-    aw.L += 1;
-    h.GF += eh;
-    h.GA += ea;
-    h.home_GF += eh;
-    h.home_GA += ea;
-    aw.GF += ea;
-    aw.GA += eh;
-    aw.away_GF += ea;
-    aw.away_GA += eh;
-    ensureH2hCell(h2h, home, away).W += 1;
-    ensureH2hCell(h2h, away, home).L += 1;
-  } else if (outcome === "away_win") {
-    aw.W += 1;
-    aw.PTS += 3;
-    h.L += 1;
-    h.GF += eh;
-    h.GA += ea;
-    h.home_GF += eh;
-    h.home_GA += ea;
-    aw.GF += ea;
-    aw.GA += eh;
-    aw.away_GF += ea;
-    aw.away_GA += eh;
-    ensureH2hCell(h2h, home, away).L += 1;
-    ensureH2hCell(h2h, away, home).W += 1;
-  } else {
-    h.T += 1;
-    aw.T += 1;
-    h.PTS += 1;
-    aw.PTS += 1;
-    const avg = (eh + ea) / 2;
-    h.GF += avg;
-    h.GA += avg;
-    h.home_GF += avg;
-    h.home_GA += avg;
-    aw.GF += avg;
-    aw.GA += avg;
-    aw.away_GF += avg;
-    aw.away_GA += avg;
+  const draw = outcome === "draw";
+  const avg = (eh + ea) / 2;
+  const hGF = draw ? avg : eh;
+  const hGA = draw ? avg : ea;
+
+  if (h) {
+    h.MP += 1;
+    h.GF += hGF;
+    h.GA += hGA;
+    h.home_GF += hGF;
+    h.home_GA += hGA;
+    if (draw) {
+      h.T += 1;
+      h.PTS += 1;
+    } else if (outcome === "home_win") {
+      h.W += 1;
+      h.PTS += 3;
+    } else {
+      h.L += 1;
+    }
+    h.GD = h.GF - h.GA;
+  }
+
+  if (aw) {
+    aw.MP += 1;
+    aw.GF += hGA;
+    aw.GA += hGF;
+    aw.away_GF += hGA;
+    aw.away_GA += hGF;
+    if (draw) {
+      aw.T += 1;
+      aw.PTS += 1;
+    } else if (outcome === "away_win") {
+      aw.W += 1;
+      aw.PTS += 3;
+    } else {
+      aw.L += 1;
+    }
+    aw.GD = aw.GF - aw.GA;
+  }
+
+  // Head-to-head is only a tiebreaker between two teams ranked in this table.
+  if (!h || !aw) return;
+  if (draw) {
     ensureH2hCell(h2h, home, away).T += 1;
     ensureH2hCell(h2h, away, home).T += 1;
+  } else if (outcome === "home_win") {
+    ensureH2hCell(h2h, home, away).W += 1;
+    ensureH2hCell(h2h, away, home).L += 1;
+  } else {
+    ensureH2hCell(h2h, home, away).L += 1;
+    ensureH2hCell(h2h, away, home).W += 1;
   }
-  h.GD = h.GF - h.GA;
-  aw.GD = aw.GF - aw.GA;
   ensureH2hCell(h2h, home, away).GF += eh;
   ensureH2hCell(h2h, home, away).GA += ea;
   ensureH2hCell(h2h, away, home).GF += ea;

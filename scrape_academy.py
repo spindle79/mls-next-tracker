@@ -129,11 +129,19 @@ def build_squad_index(standings: dict) -> tuple[dict, dict]:
     return squad_to_bracket, bracket_rows
 
 
-def group_matches(events: list[dict], squad_to_bracket: dict) -> tuple[dict, list, int]:
-    """Bucket events into brackets. Only games where both squads share a bracket count."""
+def group_matches(events: list[dict], squad_to_bracket: dict) -> tuple[dict, list, int, dict]:
+    """Bucket events into brackets.
+
+    Divisions within the same age group can run an interlocking schedule — NorCal
+    Coast and NorCal Redwood play each other all season — so those fixtures are
+    real results and are filed under *both* brackets. The league still ranks each
+    division separately, so each table counts them towards its own teams' records.
+    A fixture across age groups is a showcase and is dropped.
+    """
     by_bracket: dict[tuple[str, str], list[dict]] = defaultdict(list)
     unknown_squads: set[tuple] = set()
     cross_bracket = 0
+    interlocking: dict[tuple, int] = defaultdict(int)
 
     for event in events:
         home_key = squad_to_bracket.get(event.get("home_squad_id"))
@@ -150,26 +158,29 @@ def group_matches(events: list[dict], squad_to_bracket: dict) -> tuple[dict, lis
 
         if home_key is None or away_key is None:
             continue
+
         if home_key != away_key:
-            # Interleague / showcase fixture. Excluded so a division's matches stay
-            # self-consistent — and the standings feed excludes them too.
             cross_bracket += 1
-            continue
+            if home_key[0] != away_key[0]:
+                continue
+            interlocking[tuple(sorted([home_key, away_key]))] += 1
 
-        by_bracket[home_key].append(
-            {
-                "match_id": str(event.get("game_key") or event.get("id") or ""),
-                "date": format_kickoff(event),
-                "venue": ((event.get("event_location") or {}).get("name") or "").strip(),
-                "home": ((event.get("home_organisation") or {}).get("name") or "").strip(),
-                "away": ((event.get("away_organisation") or {}).get("name") or "").strip(),
-                "score": format_score(event),
-                "home_squad_id": event.get("home_squad_id"),
-                "away_squad_id": event.get("away_squad_id"),
-            }
-        )
+        record = {
+            "match_id": str(event.get("game_key") or event.get("id") or ""),
+            "date": format_kickoff(event),
+            "venue": ((event.get("event_location") or {}).get("name") or "").strip(),
+            "home": ((event.get("home_organisation") or {}).get("name") or "").strip(),
+            "away": ((event.get("away_organisation") or {}).get("name") or "").strip(),
+            "score": format_score(event),
+            "home_squad_id": event.get("home_squad_id"),
+            "away_squad_id": event.get("away_squad_id"),
+        }
 
-    return by_bracket, sorted(unknown_squads), cross_bracket
+        by_bracket[home_key].append(record)
+        if away_key != home_key:
+            by_bracket[away_key].append(dict(record))
+
+    return by_bracket, sorted(unknown_squads), cross_bracket, dict(interlocking)
 
 
 def goal_totals(matches: list[dict]) -> dict[int, dict[str, int]]:
@@ -243,9 +254,20 @@ def scrape_academy(ages, season_key=DEFAULT_SEASON_KEY, outfile="scraped_academy
     squad_to_bracket, bracket_rows = build_squad_index(standings)
     print(f"\n{len(events)} events, {len(squad_to_bracket)} squads, {len(bracket_rows)} divisions in feed")
 
-    by_bracket, unknown_squads, cross_bracket = group_matches(events, squad_to_bracket)
-    if cross_bracket:
-        print(f"Skipped {cross_bracket} cross-division fixtures")
+    by_bracket, unknown_squads, cross_bracket, interlocking = group_matches(
+        events, squad_to_bracket
+    )
+    if interlocking:
+        counted = sum(interlocking.values())
+        print(
+            f"Counted {counted} interlocking fixtures towards both divisions "
+            f"({len(interlocking)} division pairs):"
+        )
+        for (a, b), n in sorted(interlocking.items()):
+            print(f"    {a[0]:4} {a[1]} <-> {b[1]}: {n}")
+    dropped = cross_bracket - sum(interlocking.values())
+    if dropped:
+        print(f"Skipped {dropped} cross-age showcase fixtures")
     if unknown_squads:
         print(f"Skipped {len(unknown_squads)} squad(s) with no standings row:")
         for squad_name, club in unknown_squads:

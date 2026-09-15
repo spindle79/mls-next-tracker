@@ -41,6 +41,7 @@ export interface PredictionRow {
   date?: string;
   venue?: string;
   predicted_outcome?: string;
+  projected_outcome?: string;
   est_home_goals?: number;
   est_away_goals?: number;
   home_win_prob?: number;
